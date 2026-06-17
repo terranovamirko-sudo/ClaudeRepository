@@ -978,7 +978,40 @@ function beep(freq, dur, type, vol) {
     o.stop(actx.currentTime + dur);
   } catch(e){}
 }
-// Dinosaur roar/screech: a falling pitch sweep with a growl layer
+// Recorded sound effects (added to the repo). Each falls back to a synth if missing.
+// Uses a small pool of preloaded elements so plays can overlap; unlock() is called
+// on the first user gesture so audio works on mobile (iOS/Android autoplay rules).
+function makeSample(src, vol, throttleMs, poolSize) {
+  const pool = [];
+  for (let i = 0; i < (poolSize || 3); i++) {
+    const a = new Audio(src); a.preload = 'auto'; a.volume = vol == null ? 0.85 : vol; pool.push(a);
+  }
+  let idx = 0, last = 0, ok = true;
+  pool[0].addEventListener('error', () => { ok = false; });
+  function play() {
+    if (!ok) return false;
+    const now = performance.now();
+    if (now - last < (throttleMs || 0)) return true; // throttle: avoid overlap spam
+    last = now;
+    const a = pool[idx]; idx = (idx + 1) % pool.length;
+    try { a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch(e){}
+    return true;
+  }
+  play.unlock = function () {
+    pool.forEach(a => {
+      a.muted = true;
+      const p = a.play();
+      if (p && p.then) p.then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => { a.muted = false; });
+      else { try { a.pause(); } catch(e){} a.muted = false; }
+    });
+  };
+  return play;
+}
+const playRexRoar    = makeSample('sounds/roar_trex.mp3', 0.85, 1500);
+const playRaptorCall = makeSample('sounds/call_raptor.mp3', 0.7, 1200);
+function unlockSamples() { playRexRoar.unlock(); playRaptorCall.unlock(); }
+
+// Synth screech fallback (used for raptor attack, or if a sample fails to load)
 function roar(kind) {
   try {
     if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1004,6 +1037,14 @@ function roar(kind) {
     o1.start(t0); o2.start(t0);
     o1.stop(t0 + 0.62); o2.stop(t0 + 0.62);
   } catch(e){}
+}
+
+// Pick the right voice for an event: 'spot' (sees you / lunge) or 'attack' (bite)
+function dinoVoice(kind, event) {
+  if (kind === 'rex') { if (!playRexRoar()) roar('rex'); return; }
+  // raptor: recorded call when it spots you, synth screech when it bites
+  if (event === 'spot') { if (playRaptorCall()) return; }
+  roar('raptor');
 }
 
 // ---------- HUD ----------
@@ -1048,7 +1089,8 @@ function attack() {
   const cfg = KIND[playerKind];
   state.attackCd = 0.45;
   state.attackAnim = 0.32;   // trigger thrust / bite animation
-  beep(playerKind === 'rex' ? 120 : 180, 0.14, playerKind === 'rex' ? 'sawtooth' : 'square', 0.06);
+  if (playerKind === 'rex') { if (!playRexRoar(0.8)) beep(120, 0.14, 'sawtooth', 0.06); }
+  else beep(180, 0.14, 'square', 0.06);
   // attack cone in the direction the character faces (yaw)
   forward.set(-Math.sin(yaw), 0, -Math.cos(yaw));
   const px = yawObj.position.x, pz = yawObj.position.z;
@@ -1274,7 +1316,7 @@ function updateDinos(dt) {
       const was = u.state;
       if (dist < u.detect) u.state = 'chase';
       else if (dist > u.detect*1.4) u.state = 'wander';
-      if (u.state === 'chase' && was !== 'chase' && Math.random() < 0.6) roar(u.kind); // lunge roar
+      if (u.state === 'chase' && was !== 'chase') dinoVoice(u.kind, 'spot'); // call when it spots you
     }
 
     let mvx = 0, mvz = 0, fast = false;
@@ -1287,7 +1329,7 @@ function updateDinos(dt) {
         if (u.attackCd <= 0) {
           u.attackCd = 1.1;
           damagePlayer(u.damage);
-          roar(u.kind);                      // screech/roar when it bites
+          dinoVoice(u.kind, 'attack');       // screech/roar when it bites
           if (u.jaw) u.jaw.rotation.x = 0.5; // chomp
         }
       }
@@ -1469,6 +1511,7 @@ requestAnimationFrame(animate);
 
 // ---------- Start / restart ----------
 function startGame(kind) {
+  unlockSamples();   // unlock recorded audio within this user gesture (mobile)
   setupPlayer(kind === 'rex' ? 'rex' : 'human');
   scoreEl.textContent = (playerKind === 'rex' ? 'PREDE CACCIATE: 0' : 'DINO ABBATTUTI: 0');
   document.getElementById('btnAttack').textContent = KIND[playerKind].icon;  // adapt attack icon
