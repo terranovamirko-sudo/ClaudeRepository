@@ -456,13 +456,112 @@ function makeRock(x, z) {
 }
 const obstacles = []; // {x,z,r} for collision
 const decoGroup = new THREE.Group(); scene.add(decoGroup);
-for (let i = 0; i < 260; i++) {
+for (let i = 0; i < 360; i++) {
   const x = (Math.random()-0.5) * (WORLD-40);
   const z = (Math.random()-0.5) * (WORLD-40);
   if (Math.sqrt(x*x+z*z) < 16) continue; // keep spawn clear
   if (heightAt(x,z) < -3) continue;       // not underwater
   if (Math.random() < 0.72) { const t = makeTree(x,z); decoGroup.add(t); obstacles.push({x, z, r: 1.4*t.scale.x}); }
   else { decoGroup.add(makeRock(x,z)); obstacles.push({x, z, r: 1.8}); }
+}
+
+// ---------- Ground vegetation: grass, bushes, flowers, logs ----------
+const dummy = new THREE.Object3D();
+
+function makeGrassTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d'); ctx.clearRect(0, 0, 64, 64);
+  for (let i = 0; i < 7; i++) {
+    const x = 6 + Math.random()*52, w = 2 + Math.random()*2, h = 34 + Math.random()*26;
+    const g = ctx.createLinearGradient(0, 64, 0, 64-h);
+    g.addColorStop(0, '#3a6321'); g.addColorStop(1, '#84bb42');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(x, 64);
+    ctx.quadraticCurveTo(x + (Math.random()-0.5)*16, 64-h*0.6, x + (Math.random()-0.5)*10, 64-h);
+    ctx.lineTo(x + w + (Math.random()-0.5)*10, 64-h);
+    ctx.quadraticCurveTo(x + w + (Math.random()-0.5)*16, 64-h*0.6, x + w, 64);
+    ctx.closePath(); ctx.fill();
+  }
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t;
+}
+
+// Grass (crossed-billboard tufts via instancing)
+{
+  const grassMat = new THREE.MeshStandardMaterial({ map: makeGrassTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1 });
+  const grassGeo = new THREE.PlaneGeometry(2.2, 1.6); grassGeo.translate(0, 0.8, 0);
+  const GMAX = 4200;
+  const grass = new THREE.InstancedMesh(grassGeo, grassMat, GMAX);
+  let gi = 0;
+  for (let i = 0; i < GMAX*3 && gi < GMAX; i++) {
+    const x = (Math.random()-0.5)*(WORLD-20), z = (Math.random()-0.5)*(WORLD-20);
+    const h = heightAt(x, z);
+    if (h < -0.5 || h > 12) continue;
+    dummy.position.set(x, h, z);
+    dummy.rotation.set(0, Math.random()*Math.PI, 0);
+    const s = 0.7 + Math.random()*1.0;
+    dummy.scale.set(s, s*(0.8 + Math.random()*0.7), s);
+    dummy.updateMatrix(); grass.setMatrixAt(gi++, dummy.matrix);
+  }
+  grass.count = gi; grass.receiveShadow = true; grass.instanceMatrix.needsUpdate = true;
+  scene.add(grass);
+}
+
+// Bushes
+{
+  const bushMat = new THREE.MeshStandardMaterial({ color: 0x39682d, roughness: 1, flatShading: true });
+  const bushGeo = new THREE.IcosahedronGeometry(1.1, 0);
+  const BMAX = 480;
+  const bushes = new THREE.InstancedMesh(bushGeo, bushMat, BMAX);
+  let bi = 0;
+  for (let i = 0; i < BMAX*4 && bi < BMAX; i++) {
+    const x = (Math.random()-0.5)*(WORLD-30), z = (Math.random()-0.5)*(WORLD-30);
+    const h = heightAt(x, z);
+    if (h < -0.5 || h > 13 || Math.sqrt(x*x+z*z) < 14) continue;
+    dummy.position.set(x, h + 0.5, z);
+    dummy.rotation.set(Math.random(), Math.random(), Math.random());
+    const s = 0.8 + Math.random()*1.7; dummy.scale.set(s, s*0.7, s);
+    dummy.updateMatrix(); bushes.setMatrixAt(bi++, dummy.matrix);
+  }
+  bushes.count = bi; bushes.castShadow = true; bushes.receiveShadow = true; bushes.instanceMatrix.needsUpdate = true;
+  scene.add(bushes);
+}
+
+// Wild flowers (color pops)
+{
+  const flowerGeo = new THREE.SphereGeometry(0.22, 6, 5);
+  const flowerMat = new THREE.MeshStandardMaterial({ roughness: 0.8, flatShading: true });
+  const palette = [0xff5d5d, 0xffd23f, 0xff9ce0, 0x9b7bff, 0xffffff, 0xff8a3d];
+  const FMAX = 650;
+  const flowers = new THREE.InstancedMesh(flowerGeo, flowerMat, FMAX);
+  let fi = 0;
+  for (let i = 0; i < FMAX*4 && fi < FMAX; i++) {
+    const x = (Math.random()-0.5)*(WORLD-20), z = (Math.random()-0.5)*(WORLD-20);
+    const h = heightAt(x, z);
+    if (h < 0 || h > 10) continue;
+    dummy.position.set(x, h + 0.25, z); dummy.rotation.set(0, 0, 0);
+    dummy.scale.setScalar(0.8 + Math.random()*0.9); dummy.updateMatrix();
+    flowers.setMatrixAt(fi, dummy.matrix);
+    flowers.setColorAt(fi, new THREE.Color(palette[Math.floor(Math.random()*palette.length)]));
+    fi++;
+  }
+  flowers.count = fi; flowers.instanceMatrix.needsUpdate = true;
+  if (flowers.instanceColor) flowers.instanceColor.needsUpdate = true;
+  scene.add(flowers);
+}
+
+// Fallen logs (also act as low obstacles)
+{
+  const logMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2a, roughness: 1, flatShading: true });
+  for (let i = 0; i < 16; i++) {
+    const x = (Math.random()-0.5)*(WORLD-40), z = (Math.random()-0.5)*(WORLD-40);
+    const h = heightAt(x, z);
+    if (h < -0.5 || h > 12 || Math.sqrt(x*x+z*z) < 14) continue;
+    const len = 3 + Math.random()*4;
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, len, 7), logMat);
+    log.rotation.z = Math.PI/2; log.rotation.y = Math.random()*Math.PI;
+    log.position.set(x, h + 0.4, z); log.castShadow = true; log.receiveShadow = true;
+    decoGroup.add(log); obstacles.push({ x, z, r: 1.4 });
+  }
 }
 
 // ---------- Water plane (low areas) ----------
@@ -880,6 +979,33 @@ function beep(freq, dur, type, vol) {
     o.stop(actx.currentTime + dur);
   } catch(e){}
 }
+// Dinosaur roar/screech: a falling pitch sweep with a growl layer
+function roar(kind) {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = actx.currentTime;
+    const isRex = kind === 'rex';
+    const base = isRex ? 110 : 360;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(isRex ? 0.16 : 0.11, t0 + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + (isRex ? 0.6 : 0.4));
+    g.connect(actx.destination);
+    // main screech (saw, swept down)
+    const o1 = actx.createOscillator();
+    o1.type = 'sawtooth';
+    o1.frequency.setValueAtTime(base * 1.6, t0);
+    o1.frequency.exponentialRampToValueAtTime(base * 0.6, t0 + (isRex ? 0.55 : 0.38));
+    // growl layer (square, low) for body
+    const o2 = actx.createOscillator();
+    o2.type = 'square';
+    o2.frequency.setValueAtTime(base * 0.5, t0);
+    o2.frequency.exponentialRampToValueAtTime(base * 0.32, t0 + 0.4);
+    o1.connect(g); o2.connect(g);
+    o1.start(t0); o2.start(t0);
+    o1.stop(t0 + 0.62); o2.stop(t0 + 0.62);
+  } catch(e){}
+}
 
 // ---------- HUD ----------
 const hpFill = document.getElementById('hpFill');
@@ -1007,6 +1133,12 @@ function resolveCollision(px, pz) {
 
 // ---------- Player update ----------
 const moveDir = new THREE.Vector3();
+function lerpAngle(a, b, t) {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+}
 function updatePlayer(dt) {
   moveDir.set(0,0,0);
   if (keys['KeyW']) moveDir.z -= 1;
@@ -1023,13 +1155,20 @@ function updatePlayer(dt) {
   if (sprint) state.stamina = Math.max(0, state.stamina - 22*dt);
   else state.stamina = Math.min(100, state.stamina + 10*dt);
 
-  if (moving) moveDir.applyEuler(new THREE.Euler(0, yawObj.rotation.y, 0));
+  if (moving) moveDir.applyEuler(new THREE.Euler(0, yaw, 0));  // input relative to camera
   let nx = yawObj.position.x + moveDir.x * speed * dt;
   let nz = yawObj.position.z + moveDir.z * speed * dt;
   [nx, nz] = resolveCollision(nx, nz);
   yawObj.position.x = nx; yawObj.position.z = nz;
 
-  yawObj.rotation.y = yaw;   // character faces orbit direction
+  // Character faces the direction it actually moves (strafing turns the body).
+  // When standing still but attacking, it turns to strike toward the camera view.
+  let faceTarget = null;
+  if (moving) faceTarget = Math.atan2(moveDir.x, moveDir.z);
+  else if (state.attackAnim > 0) faceTarget = yaw + Math.PI;
+  if (faceTarget !== null) {
+    player.rotation.y = lerpAngle(player.rotation.y, faceTarget, 1 - Math.pow(0.0008, dt));
+  }
 
   // jump + gravity (yawObj sits at the character's feet)
   const groundY = heightAt(nx, nz);
@@ -1124,8 +1263,10 @@ function updateDinos(dt) {
       if (dist < u.fleeRange) u.state = 'flee';
       else if (dist > u.fleeRange*1.5) u.state = 'wander';
     } else {
+      const was = u.state;
       if (dist < u.detect) u.state = 'chase';
       else if (dist > u.detect*1.4) u.state = 'wander';
+      if (u.state === 'chase' && was !== 'chase' && Math.random() < 0.6) roar(u.kind); // lunge roar
     }
 
     let mvx = 0, mvz = 0, fast = false;
@@ -1138,6 +1279,7 @@ function updateDinos(dt) {
         if (u.attackCd <= 0) {
           u.attackCd = 1.1;
           damagePlayer(u.damage);
+          roar(u.kind);                      // screech/roar when it bites
           if (u.jaw) u.jaw.rotation.x = 0.5; // chomp
         }
       }
