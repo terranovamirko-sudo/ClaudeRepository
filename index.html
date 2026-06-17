@@ -44,9 +44,10 @@
 
   /* Overlays */
   .overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
     background: radial-gradient(circle at 50% 35%, rgba(30,40,70,0.92), rgba(5,7,12,0.97)); text-align: center; }
   .overlay.hidden { display: none; }
-  .panel { max-width: 640px; padding: 36px 44px; }
+  .panel { max-width: 640px; padding: 36px 44px; margin: auto; }
   .title { font-size: clamp(2.4rem, 8vw, 5rem); font-weight: 900; letter-spacing: 2px; line-height: 1;
     color: #6cf06c; text-shadow: 2px 2px 0 #1d7a1d, 4px 4px 0 #0c4a0c, 6px 8px 18px rgba(0,0,0,.7); }
   .subtitle { margin-top: 6px; font-size: clamp(1rem,3vw,1.5rem); color: #ffe08a; letter-spacing: 3px; }
@@ -117,7 +118,7 @@
   #rotate .ph { font-size: 64px; animation: rotanim 1.8s ease-in-out infinite; }
   @keyframes rotanim { 0%,100% { transform: rotate(0deg); } 55% { transform: rotate(90deg); } }
   @media (orientation: portrait) and (max-width: 900px) {
-    #rotate.may { display: flex; }
+    body.playing #rotate.may { display: flex; }
   }
 </style>
 </head>
@@ -1085,6 +1086,7 @@ function startGame() {
   document.getElementById('start').classList.add('hidden');
   document.getElementById('gameOver').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
+  document.body.classList.add('playing');
   if (isTouch) {
     document.getElementById('touch').classList.add('on');
     state.running = true; paused = false;
@@ -1107,6 +1109,7 @@ function endGame(reason) {
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('touch').classList.remove('on');
   document.getElementById('gameOver').classList.remove('hidden');
+  document.body.classList.remove('playing');
 }
 
 startBtn.addEventListener('click', startGame);
