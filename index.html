@@ -6,7 +6,7 @@
 <title>DINO SURVIVAL — Mirko Terranova</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0d14; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0d14; touch-action: none; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
   body { font-family: "Trebuchet MS", "Segoe UI", sans-serif; color: #fff; }
   canvas { display: block; }
 
@@ -63,6 +63,42 @@
   #gameOver .title { color: #ff5a5a; text-shadow: 2px 2px 0 #7a1d1d, 4px 4px 0 #4a0c0c, 6px 8px 18px rgba(0,0,0,.7); }
   .stat-line { font-size: 17px; margin: 8px 0; color: #ffe08a; }
   #fps { position:absolute; right:14px; bottom:12px; font-size:11px; opacity:0.4; font-family:monospace; }
+
+  /* ---------- Touch controls ---------- */
+  #touch { position: fixed; inset: 0; z-index: 12; display: none; }
+  #touch.on { display: block; }
+
+  #lookZone { position: absolute; right: 0; top: 0; width: 60%; height: 100%; pointer-events: auto; }
+
+  #joyBase {
+    position: absolute; left: 26px; bottom: 26px; width: 130px; height: 130px;
+    border-radius: 50%; background: rgba(255,255,255,0.10); border: 2px solid rgba(255,255,255,0.28);
+    pointer-events: auto; touch-action: none;
+  }
+  #joyKnob {
+    position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px;
+    border-radius: 50%; background: rgba(255,255,255,0.35); border: 2px solid rgba(255,255,255,0.6);
+  }
+
+  .tbtn {
+    position: absolute; pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: bold; text-align: center; color: #fff; line-height: 1.05;
+    background: rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.35); text-shadow: 0 1px 2px #000;
+  }
+  .tbtn:active, .tbtn.held { background: rgba(255,255,255,0.4); color: #06210a; }
+  #btnAttack { right: 28px;  bottom: 40px;  width: 92px; height: 92px; font-size: 26px; background: rgba(180,30,30,0.45); }
+  #btnJump   { right: 130px; bottom: 70px;  width: 64px; height: 64px; font-size: 22px; }
+  #btnRun    { right: 40px;  bottom: 145px; width: 64px; height: 64px; font-size: 22px; }
+  #btnEat    { right: 128px; bottom: 150px; width: 60px; height: 60px; font-size: 24px; }
+
+  @media (max-width: 760px) {
+    #stats { width: 190px; left: 12px; bottom: 12px; gap: 6px; }
+    .bar { height: 15px; } .bar > span { line-height: 15px; font-size: 10px; }
+    #score { font-size: 19px; } #clock { font-size: 11px; }
+    .panel { padding: 22px 18px; }
+    .keys { grid-template-columns: auto auto; font-size: 12px; }
+  }
 </style>
 </head>
 <body>
@@ -80,6 +116,15 @@
   </div>
   <div id="toast"></div>
   <div id="fps"></div>
+
+  <div id="touch">
+    <div id="lookZone"></div>
+    <div id="joyBase"><div id="joyKnob"></div></div>
+    <div class="tbtn" id="btnAttack">⚔️</div>
+    <div class="tbtn" id="btnJump">⤒</div>
+    <div class="tbtn" id="btnRun">🏃</div>
+    <div class="tbtn" id="btnEat">🥩</div>
+  </div>
 </div>
 
 <div id="start" class="overlay">
@@ -90,6 +135,10 @@
       Sei bloccato in una valle preistorica al tramonto. I dinosauri sono affamati e tu sei la preda.
       Sopravvivi più a lungo possibile: tieni d'occhio <b>vita</b>, <b>fame</b> e <b>stamina</b>,
       combatti i raptor e raccogli carne per non morire di fame.
+    </div>
+    <div class="desc" style="margin-top:-8px;font-size:13px;opacity:0.75;">
+      📱 Su smartphone: <b>joystick</b> a sinistra per muoverti, <b>trascina</b> a destra per guardarti intorno,
+      e usa i pulsanti ⚔️ attacca · ⤒ salta · 🏃 corri · 🥩 mangia.
     </div>
     <div class="keys">
       <span>Muoviti</span><b>W A S D</b>
@@ -399,6 +448,85 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('keyup', e => { keys[e.code] = false; });
 
+// ---------- Touch controls (smartphone / tablet) ----------
+const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+let joy = { x: 0, y: 0 };   // analog move input (-1..1)
+let runHeld = false;        // run button held
+
+(function setupTouch() {
+  const joyBase = document.getElementById('joyBase');
+  const joyKnob = document.getElementById('joyKnob');
+  const lookZone = document.getElementById('lookZone');
+  const JOY_R = 50;
+  let joyId = null, joyCx = 0, joyCy = 0;
+
+  function joyStart(e) {
+    const t = e.changedTouches[0];
+    joyId = t.identifier;
+    const r = joyBase.getBoundingClientRect();
+    joyCx = r.left + r.width/2; joyCy = r.top + r.height/2;
+    joyMove(e);
+  }
+  function joyMove(e) {
+    for (const t of e.changedTouches) {
+      if (t.identifier !== joyId) continue;
+      let dx = t.clientX - joyCx, dy = t.clientY - joyCy;
+      const d = Math.hypot(dx, dy);
+      if (d > JOY_R) { dx = dx/d*JOY_R; dy = dy/d*JOY_R; }
+      joyKnob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      joy.x = dx / JOY_R; joy.y = dy / JOY_R;
+    }
+    e.preventDefault();
+  }
+  function joyEnd(e) {
+    for (const t of e.changedTouches) {
+      if (t.identifier === joyId) {
+        joyId = null; joy.x = 0; joy.y = 0;
+        joyKnob.style.transform = 'translate(0,0)';
+      }
+    }
+  }
+  joyBase.addEventListener('touchstart', joyStart, { passive: false });
+  joyBase.addEventListener('touchmove', joyMove, { passive: false });
+  joyBase.addEventListener('touchend', joyEnd);
+  joyBase.addEventListener('touchcancel', joyEnd);
+
+  // Look: drag anywhere on the right zone to rotate the camera
+  let lookId = null, lookX = 0, lookY = 0;
+  lookZone.addEventListener('touchstart', e => {
+    const t = e.changedTouches[0];
+    lookId = t.identifier; lookX = t.clientX; lookY = t.clientY;
+    e.preventDefault();
+  }, { passive: false });
+  lookZone.addEventListener('touchmove', e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier !== lookId) continue;
+      const dx = t.clientX - lookX, dy = t.clientY - lookY;
+      lookX = t.clientX; lookY = t.clientY;
+      if (!state.running || paused) continue;
+      yawObj.rotation.y   -= dx * 0.005;
+      pitchObj.rotation.x -= dy * 0.005;
+      pitchObj.rotation.x = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitchObj.rotation.x));
+    }
+    e.preventDefault();
+  }, { passive: false });
+  function lookEnd(e) { for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null; }
+  lookZone.addEventListener('touchend', lookEnd);
+  lookZone.addEventListener('touchcancel', lookEnd);
+
+  // Action buttons
+  function bindBtn(id, onDown, onUp) {
+    const el = document.getElementById(id);
+    el.addEventListener('touchstart', e => { e.preventDefault(); el.classList.add('held'); onDown(); }, { passive: false });
+    el.addEventListener('touchend',   e => { e.preventDefault(); el.classList.remove('held'); if (onUp) onUp(); }, { passive: false });
+    el.addEventListener('touchcancel', () => { el.classList.remove('held'); if (onUp) onUp(); });
+  }
+  bindBtn('btnAttack', () => { if (state.running && !paused) attack(); });
+  bindBtn('btnJump',   () => { keys['Space'] = true; }, () => { keys['Space'] = false; });
+  bindBtn('btnRun',    () => { runHeld = true; }, () => { runHeld = false; });
+  bindBtn('btnEat',    () => { if (state.running && !paused) eatMeat(); });
+})();
+
 const PI = Math.PI;
 function onMouseMove(e) {
   if (!state.running || paused) return;
@@ -410,7 +538,7 @@ document.addEventListener('mousemove', onMouseMove);
 document.addEventListener('mousedown', e => { if (e.button === 0 && state.running && !paused) attack(); });
 
 renderer.domElement.addEventListener('click', () => {
-  if (state.alive && !state.running) renderer.domElement.requestPointerLock();
+  if (!isTouch && state.alive && !state.running) renderer.domElement.requestPointerLock();
 });
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === renderer.domElement;
@@ -545,19 +673,21 @@ function resolveCollision(px, pz) {
 // ---------- Player update ----------
 const moveDir = new THREE.Vector3();
 function updatePlayer(dt) {
-  const sprint = keys['ShiftLeft'] && state.stamina > 1 && (keys['KeyW']||keys['KeyA']||keys['KeyS']||keys['KeyD']);
-  const speed = (sprint ? 13 : 6.5);
-  if (sprint) state.stamina = Math.max(0, state.stamina - 22*dt);
-  else state.stamina = Math.min(100, state.stamina + 10*dt);
-
   moveDir.set(0,0,0);
   if (keys['KeyW']) moveDir.z -= 1;
   if (keys['KeyS']) moveDir.z += 1;
   if (keys['KeyA']) moveDir.x -= 1;
   if (keys['KeyD']) moveDir.x += 1;
-  if (moveDir.lengthSq() > 0) {
-    moveDir.normalize().applyEuler(new THREE.Euler(0, yawObj.rotation.y, 0));
-  }
+  moveDir.x += joy.x; moveDir.z += joy.y;   // analog joystick (mobile)
+  if (moveDir.lengthSq() > 1) moveDir.normalize();
+  const moving = moveDir.lengthSq() > 0.01;
+
+  const sprint = (keys['ShiftLeft'] || runHeld) && state.stamina > 1 && moving;
+  const speed = (sprint ? 13 : 6.5);
+  if (sprint) state.stamina = Math.max(0, state.stamina - 22*dt);
+  else state.stamina = Math.min(100, state.stamina + 10*dt);
+
+  if (moving) moveDir.applyEuler(new THREE.Euler(0, yawObj.rotation.y, 0));
   let nx = yawObj.position.x + moveDir.x * speed * dt;
   let nz = yawObj.position.z + moveDir.z * speed * dt;
   [nx, nz] = resolveCollision(nx, nz);
@@ -759,7 +889,13 @@ function startGame() {
   document.getElementById('start').classList.add('hidden');
   document.getElementById('gameOver').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
-  renderer.domElement.requestPointerLock();
+  if (isTouch) {
+    document.getElementById('touch').classList.add('on');
+    state.running = true; paused = false;
+    if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} }
+  } else {
+    renderer.domElement.requestPointerLock();
+  }
 }
 
 function endGame(reason) {
@@ -769,6 +905,7 @@ function endGame(reason) {
   document.getElementById('goScore').textContent = 'Dino abbattuti: ' + state.score;
   document.getElementById('goTime').textContent = 'Sopravvissuto: ' + Math.floor(state.elapsed) + 's · Giorno ' + state.day;
   document.getElementById('hud').classList.add('hidden');
+  document.getElementById('touch').classList.remove('on');
   document.getElementById('gameOver').classList.remove('hidden');
 }
 
