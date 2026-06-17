@@ -979,8 +979,11 @@ function beep(freq, dur, type, vol) {
   } catch(e){}
 }
 // Recorded sound effects (added to the repo). Each falls back to a synth if missing.
-// Uses a small pool of preloaded elements so plays can overlap; unlock() is called
-// on the first user gesture so audio works on mobile (iOS/Android autoplay rules).
+// Uses a small pool of preloaded elements (round-robin avoids clicks on retrigger),
+// but the same sound never overlaps itself: any still-playing instance is stopped
+// before a new one starts. Different samples have separate pools, so they can still
+// play together. unlock() is called on the first user gesture so audio works on
+// mobile (iOS/Android autoplay rules).
 function makeSample(src, vol, throttleMs, poolSize) {
   const pool = [];
   for (let i = 0; i < (poolSize || 3); i++) {
@@ -993,6 +996,8 @@ function makeSample(src, vol, throttleMs, poolSize) {
     const now = performance.now();
     if (now - last < (throttleMs || 0)) return true; // throttle: avoid overlap spam
     last = now;
+    // No self-overlap: stop any instance of this same sound still playing.
+    for (const el of pool) { if (!el.paused) { try { el.pause(); el.currentTime = 0; } catch(e){} } }
     const a = pool[idx]; idx = (idx + 1) % pool.length;
     try { a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch(e){}
     return true;
