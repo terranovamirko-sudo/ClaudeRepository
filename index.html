@@ -1014,7 +1014,8 @@ function makeSample(src, vol, throttleMs, poolSize) {
 }
 const playRexRoar    = makeSample('sounds/roar_trex.mp3', 0.85, 1500);
 const playRaptorCall = makeSample('sounds/call_raptor.mp3', 0.7, 1200);
-function unlockSamples() { playRexRoar.unlock(); playRaptorCall.unlock(); }
+const playRaptorBite = makeSample('sounds/attack_raptor.mp3', 0.8, 500);
+function unlockSamples() { playRexRoar.unlock(); playRaptorCall.unlock(); playRaptorBite.unlock(); }
 
 // Synth screech fallback (used for raptor attack, or if a sample fails to load)
 function roar(kind) {
@@ -1047,8 +1048,9 @@ function roar(kind) {
 // Pick the right voice for an event: 'spot' (sees you / lunge) or 'attack' (bite)
 function dinoVoice(kind, event) {
   if (kind === 'rex') { if (!playRexRoar()) roar('rex'); return; }
-  // raptor: recorded call when it spots you, synth screech when it bites
+  // raptor: recorded call when it spots you, recorded attack screech when it bites
   if (event === 'spot') { if (playRaptorCall()) return; }
+  else if (event === 'attack') { if (playRaptorBite()) return; }
   roar('raptor');
 }
 
