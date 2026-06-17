@@ -1,65 +1,788 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mirko Terranova — Scritta 3D</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DINO SURVIVAL — Mirko Terranova</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0d14; }
+  body { font-family: "Trebuchet MS", "Segoe UI", sans-serif; color: #fff; }
+  canvas { display: block; }
 
-    body {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: radial-gradient(circle at 50% 30%, #1b2240 0%, #090b14 70%);
-      font-family: "Arial Black", "Segoe UI", sans-serif;
-      overflow: hidden;
-      perspective: 900px;
-    }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
 
-    .scene {
-      transform-style: preserve-3d;
-      animation: spin 9s ease-in-out infinite alternate;
-    }
+  /* Crosshair */
+  #crosshair {
+    position: absolute; top: 50%; left: 50%; width: 22px; height: 22px;
+    transform: translate(-50%, -50%); opacity: 0.85;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ""; position: absolute; background: #e8f0ff;
+    box-shadow: 0 0 4px rgba(0,0,0,0.8);
+  }
+  #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
+  #crosshair::after  { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
 
-    .text-3d {
-      font-size: clamp(2.5rem, 9vw, 8rem);
-      font-weight: 900;
-      letter-spacing: 0.04em;
-      text-align: center;
-      line-height: 1.05;
-      color: #f5d36b;
-      transform-style: preserve-3d;
-      /* effetto estrusione 3D tramite text-shadow a strati */
-      text-shadow:
-        1px 1px 0 #c9a13b,
-        2px 2px 0 #bd9636,
-        3px 3px 0 #b08a31,
-        4px 4px 0 #a37f2c,
-        5px 5px 0 #957327,
-        6px 6px 0 #876722,
-        7px 7px 0 #785b1d,
-        8px 8px 0 #6a5018,
-        9px 9px 14px rgba(0, 0, 0, 0.55),
-        10px 14px 24px rgba(0, 0, 0, 0.45);
-    }
+  /* Stat bars */
+  #stats { position: absolute; left: 22px; bottom: 22px; width: 280px; display: flex; flex-direction: column; gap: 9px; }
+  .bar { height: 18px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.25); border-radius: 10px; overflow: hidden; position: relative; }
+  .bar > i { display: block; height: 100%; width: 100%; transition: width 0.18s linear; }
+  .bar > span { position: absolute; inset: 0; font-size: 11px; line-height: 18px; text-align: center; letter-spacing: 1px; text-shadow: 0 1px 2px #000; }
+  #hpFill   { background: linear-gradient(90deg,#ff4d4d,#b30000); }
+  #hungerFill{ background: linear-gradient(90deg,#ffd24d,#cc8800); }
+  #stamFill { background: linear-gradient(90deg,#5dd6ff,#0077b3); }
 
-    .line { display: block; }
-    .line.small { font-size: 0.72em; color: #ffe69b; }
+  /* Top info */
+  #topbar { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); text-align: center; }
+  #clock { font-size: 14px; letter-spacing: 2px; opacity: 0.85; text-shadow: 0 1px 3px #000; }
+  #score { font-size: 26px; font-weight: bold; letter-spacing: 1px; text-shadow: 0 2px 5px #000; }
+  #threat { font-size: 13px; margin-top: 2px; color: #ff8d6b; min-height: 16px; text-shadow: 0 1px 3px #000; }
 
-    @keyframes spin {
-      0%   { transform: rotateX(14deg) rotateY(-26deg); }
-      100% { transform: rotateX(14deg) rotateY(26deg); }
-    }
-  </style>
+  #toast { position: absolute; top: 40%; left: 50%; transform: translateX(-50%); font-size: 20px;
+    font-weight: bold; color: #ffe08a; text-shadow: 0 2px 6px #000; opacity: 0; transition: opacity .4s; }
+
+  /* Overlays */
+  .overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 35%, rgba(30,40,70,0.92), rgba(5,7,12,0.97)); text-align: center; }
+  .overlay.hidden { display: none; }
+  .panel { max-width: 640px; padding: 36px 44px; }
+  .title { font-size: clamp(2.4rem, 8vw, 5rem); font-weight: 900; letter-spacing: 2px; line-height: 1;
+    color: #6cf06c; text-shadow: 2px 2px 0 #1d7a1d, 4px 4px 0 #0c4a0c, 6px 8px 18px rgba(0,0,0,.7); }
+  .subtitle { margin-top: 6px; font-size: clamp(1rem,3vw,1.5rem); color: #ffe08a; letter-spacing: 3px; }
+  .desc { margin: 22px 0; line-height: 1.6; opacity: 0.9; font-size: 15px; }
+  .keys { display: inline-grid; grid-template-columns: auto auto; gap: 6px 16px; margin: 10px auto 24px; font-size: 14px; text-align: left; }
+  .keys b { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3); border-radius: 6px;
+    padding: 2px 9px; font-family: monospace; }
+  .btn { pointer-events: auto; cursor: pointer; display: inline-block; margin-top: 8px; padding: 14px 40px;
+    font-size: 18px; font-weight: bold; letter-spacing: 2px; color: #06210a; background: linear-gradient(180deg,#9cff9c,#39c439);
+    border: none; border-radius: 12px; box-shadow: 0 6px 0 #1c7a1c, 0 10px 20px rgba(0,0,0,.5); transition: transform .08s; }
+  .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #1c7a1c, 0 6px 14px rgba(0,0,0,.5); }
+  .credit { margin-top: 26px; font-size: 12px; opacity: 0.6; letter-spacing: 2px; }
+  #loadNote { font-size: 13px; opacity: 0.7; margin-top: 14px; }
+  #gameOver .title { color: #ff5a5a; text-shadow: 2px 2px 0 #7a1d1d, 4px 4px 0 #4a0c0c, 6px 8px 18px rgba(0,0,0,.7); }
+  .stat-line { font-size: 17px; margin: 8px 0; color: #ffe08a; }
+  #fps { position:absolute; right:14px; bottom:12px; font-size:11px; opacity:0.4; font-family:monospace; }
+</style>
 </head>
 <body>
-  <div class="scene">
-    <h1 class="text-3d">
-      <span class="line">Mirko</span>
-      <span class="line small">Terranova</span>
-    </h1>
+<div id="hud" class="hidden">
+  <div id="crosshair"></div>
+  <div id="topbar">
+    <div id="score">DINO ABBATTUTI: 0</div>
+    <div id="clock">☀ GIORNO 1 · 06:00</div>
+    <div id="threat"></div>
   </div>
+  <div id="stats">
+    <div class="bar"><i id="hpFill"></i><span>VITA</span></div>
+    <div class="bar"><i id="hungerFill"></i><span>FAME</span></div>
+    <div class="bar"><i id="stamFill"></i><span>STAMINA</span></div>
+  </div>
+  <div id="toast"></div>
+  <div id="fps"></div>
+</div>
+
+<div id="start" class="overlay">
+  <div class="panel">
+    <div class="title">DINO SURVIVAL</div>
+    <div class="subtitle">UNA CREAZIONE DI MIRKO TERRANOVA</div>
+    <div class="desc">
+      Sei bloccato in una valle preistorica al tramonto. I dinosauri sono affamati e tu sei la preda.
+      Sopravvivi più a lungo possibile: tieni d'occhio <b>vita</b>, <b>fame</b> e <b>stamina</b>,
+      combatti i raptor e raccogli carne per non morire di fame.
+    </div>
+    <div class="keys">
+      <span>Muoviti</span><b>W A S D</b>
+      <span>Guarda</span><b>Mouse</b>
+      <span>Corri</span><b>Shift</b>
+      <span>Salta</span><b>Spazio</b>
+      <span>Attacca</span><b>Click sx</b>
+      <span>Mangia carne</span><b>E</b>
+      <span>Pausa</span><b>Esc</b>
+    </div>
+    <br>
+    <button class="btn" id="startBtn">INIZIA A SOPRAVVIVERE</button>
+    <div id="loadNote">Caricamento motore 3D…</div>
+    <div class="credit">WebGL · Three.js · Mondo procedurale</div>
+  </div>
+</div>
+
+<div id="gameOver" class="overlay hidden">
+  <div class="panel">
+    <div class="title">SEI MORTO</div>
+    <div class="stat-line" id="goReason">Sei stato divorato.</div>
+    <div class="stat-line" id="goScore">Dino abbattuti: 0</div>
+    <div class="stat-line" id="goTime">Sopravvissuto: 0s</div>
+    <br>
+    <button class="btn" id="retryBtn">RIPROVA</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+"use strict";
+
+// ---------- Boot / loading guard ----------
+const loadNote = document.getElementById('loadNote');
+const startBtn = document.getElementById('startBtn');
+if (typeof THREE === 'undefined') {
+  loadNote.textContent = 'Errore: impossibile caricare Three.js (serve una connessione internet).';
+  loadNote.style.color = '#ff8a8a';
+  return;
+}
+loadNote.textContent = 'Motore pronto. Premi INIZIA (verrà bloccato il cursore del mouse).';
+
+// ---------- Renderer / Scene / Camera ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const SKY_DAY = new THREE.Color(0x87b6e8);
+const SKY_NIGHT = new THREE.Color(0x0b1226);
+scene.background = SKY_DAY.clone();
+scene.fog = new THREE.Fog(0x87b6e8, 40, 240);
+
+const camera = new THREE.PerspectiveCamera(72, window.innerWidth/window.innerHeight, 0.1, 1000);
+
+// Player rig: yaw object holds pitch object holds camera
+const yawObj = new THREE.Object3D();
+const pitchObj = new THREE.Object3D();
+yawObj.add(pitchObj);
+pitchObj.add(camera);
+scene.add(yawObj);
+
+// ---------- Lights ----------
+const hemi = new THREE.HemisphereLight(0xbfd9ff, 0x4a6b3a, 0.7);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff2d6, 1.1);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 220;
+sun.shadow.camera.left = -90; sun.shadow.camera.right = 90;
+sun.shadow.camera.top = 90; sun.shadow.camera.bottom = -90;
+sun.shadow.bias = -0.0004;
+scene.add(sun);
+scene.add(sun.target);
+
+// ---------- Procedural terrain ----------
+const WORLD = 400;          // world size
+const HALF = WORLD / 2;
+const SEG = 200;            // terrain resolution
+
+function hash(x, z) {
+  let h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
+  return h - Math.floor(h);
+}
+function smooth(t){ return t*t*(3-2*t); }
+function valNoise(x, z) {
+  const xi = Math.floor(x), zi = Math.floor(z);
+  const xf = x - xi, zf = z - zi;
+  const a = hash(xi, zi), b = hash(xi+1, zi), c = hash(xi, zi+1), d = hash(xi+1, zi+1);
+  const u = smooth(xf), v = smooth(zf);
+  return THREE.MathUtils.lerp(THREE.MathUtils.lerp(a,b,u), THREE.MathUtils.lerp(c,d,u), v);
+}
+function heightAt(x, z) {
+  // layered noise -> rolling hills, flatter near center (spawn)
+  let n = 0, amp = 1, freq = 0.012, sum = 0;
+  for (let o = 0; o < 4; o++) {
+    n += valNoise(x*freq + 100, z*freq + 100) * amp;
+    sum += amp; amp *= 0.5; freq *= 2.1;
+  }
+  n = n / sum;            // 0..1
+  let h = (n - 0.5) * 34; // hills amplitude
+  // gentle bowl so player doesn't wander off edge into nothing
+  const d = Math.sqrt(x*x + z*z);
+  h += Math.max(0, (d - 150)) * 0.25;
+  // flatten spawn area
+  const flat = THREE.MathUtils.clamp(1 - d/30, 0, 1);
+  h *= (1 - flat * 0.85);
+  return h;
+}
+
+const groundGeo = new THREE.PlaneGeometry(WORLD, WORLD, SEG, SEG);
+groundGeo.rotateX(-Math.PI/2);
+{
+  const pos = groundGeo.attributes.position;
+  const colors = [];
+  const cGrass = new THREE.Color(0x4f7d3a);
+  const cDry   = new THREE.Color(0x8a7a44);
+  const cRock  = new THREE.Color(0x6d6660);
+  const cSand  = new THREE.Color(0xb6a06a);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const h = heightAt(x, z);
+    pos.setY(i, h);
+    // color by height + a little noise
+    const t = THREE.MathUtils.clamp((h + 10) / 28, 0, 1);
+    let col = cGrass.clone().lerp(cDry, THREE.MathUtils.clamp(t*1.3,0,1));
+    if (h > 12) col.lerp(cRock, THREE.MathUtils.clamp((h-12)/12, 0, 1));
+    if (h < -2) col.lerp(cSand, THREE.MathUtils.clamp((-h-2)/4, 0, 1));
+    col.offsetHSL(0, 0, (hash(x*3.1, z*3.1)-0.5)*0.06);
+    colors.push(col.r, col.g, col.b);
+  }
+  groundGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  groundGeo.computeVertexNormals();
+}
+const ground = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, flatShading: true }));
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ---------- Scatter: trees & rocks ----------
+const decoMat = {
+  trunk: new THREE.MeshStandardMaterial({ color: 0x5b3d24, roughness: 1 }),
+  leaf:  new THREE.MeshStandardMaterial({ color: 0x2f6d2f, roughness: 1, flatShading: true }),
+  leaf2: new THREE.MeshStandardMaterial({ color: 0x3c8a3c, roughness: 1, flatShading: true }),
+  rock:  new THREE.MeshStandardMaterial({ color: 0x726c66, roughness: 1, flatShading: true }),
+};
+const trunkGeo = new THREE.CylinderGeometry(0.35, 0.5, 4, 6);
+const coneGeo  = new THREE.ConeGeometry(2.4, 5, 7);
+const cone2Geo = new THREE.ConeGeometry(1.8, 4, 7);
+const rockGeo  = new THREE.IcosahedronGeometry(1, 0);
+
+function makeTree(x, z) {
+  const g = new THREE.Group();
+  const h = heightAt(x, z);
+  const trunk = new THREE.Mesh(trunkGeo, decoMat.trunk); trunk.position.y = 2; trunk.castShadow = true;
+  const c1 = new THREE.Mesh(coneGeo, decoMat.leaf);  c1.position.y = 5;   c1.castShadow = true;
+  const c2 = new THREE.Mesh(cone2Geo, decoMat.leaf2); c2.position.y = 7;  c2.castShadow = true;
+  g.add(trunk, c1, c2);
+  const s = 0.7 + Math.random()*0.9;
+  g.scale.setScalar(s);
+  g.position.set(x, h, z);
+  g.rotation.y = Math.random()*Math.PI;
+  return g;
+}
+function makeRock(x, z) {
+  const m = new THREE.Mesh(rockGeo, decoMat.rock);
+  const h = heightAt(x, z);
+  m.position.set(x, h + 0.4, z);
+  m.scale.set(1+Math.random()*2.4, 0.7+Math.random()*1.6, 1+Math.random()*2.4);
+  m.rotation.set(Math.random(), Math.random(), Math.random());
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+const obstacles = []; // {x,z,r} for collision
+const decoGroup = new THREE.Group(); scene.add(decoGroup);
+for (let i = 0; i < 260; i++) {
+  const x = (Math.random()-0.5) * (WORLD-40);
+  const z = (Math.random()-0.5) * (WORLD-40);
+  if (Math.sqrt(x*x+z*z) < 16) continue; // keep spawn clear
+  if (heightAt(x,z) < -3) continue;       // not underwater
+  if (Math.random() < 0.72) { const t = makeTree(x,z); decoGroup.add(t); obstacles.push({x, z, r: 1.4*t.scale.x}); }
+  else { decoGroup.add(makeRock(x,z)); obstacles.push({x, z, r: 1.8}); }
+}
+
+// ---------- Water plane (low areas) ----------
+const water = new THREE.Mesh(
+  new THREE.PlaneGeometry(WORLD, WORLD),
+  new THREE.MeshStandardMaterial({ color: 0x2d6c8f, transparent: true, opacity: 0.7, roughness: 0.2, metalness: 0.3 })
+);
+water.rotation.x = -Math.PI/2; water.position.y = -3; scene.add(water);
+
+// ---------- Carcass / meat pickups ----------
+const meatGeo = new THREE.SphereGeometry(0.5, 8, 6);
+const meatMat = new THREE.MeshStandardMaterial({ color: 0xb5453f, roughness: 0.6 });
+const meats = [];
+function dropMeat(x, y, z) {
+  const m = new THREE.Mesh(meatGeo, meatMat);
+  m.position.set(x, y + 0.5, z); m.castShadow = true;
+  m.userData.t = 0;
+  scene.add(m); meats.push(m);
+}
+
+// ---------- Dinosaur factory (low-poly raptor) ----------
+function makeDino(kind) {
+  const g = new THREE.Group();
+  const isRex = kind === 'rex';
+  const bodyCol = isRex ? 0x6b5536 : 0x7a8f4a;
+  const bellyCol = isRex ? 0x9c8252 : 0xcdd98a;
+  const mat = new THREE.MeshStandardMaterial({ color: bodyCol, roughness: 0.9, flatShading: true });
+  const belly = new THREE.MeshStandardMaterial({ color: bellyCol, roughness: 0.9, flatShading: true });
+
+  const scale = isRex ? 2.2 : 1.0;
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.0, 2.4), mat);
+  body.position.y = 1.6; body.castShadow = true; g.add(body);
+
+  const bellyMesh = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.4, 2.0), belly);
+  bellyMesh.position.set(0, 1.25, 0); g.add(bellyMesh);
+
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.9), mat);
+  neck.position.set(0, 2.1, 1.4); neck.rotation.x = -0.4; neck.castShadow = true; g.add(neck);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 1.2), mat);
+  head.position.set(0, 2.45, 2.1); head.castShadow = true; g.add(head);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.25, 0.9), belly);
+  jaw.position.set(0, 2.2, 2.25); g.add(jaw);
+  // eyes
+  const eyeGeo = new THREE.SphereGeometry(0.09, 6, 6);
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffd400, emissive: 0x553300 });
+  for (const sx of [-1, 1]) {
+    const e = new THREE.Mesh(eyeGeo, eyeMat); e.position.set(sx*0.28, 2.62, 2.35); g.add(e);
+  }
+
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 2.4), mat);
+  tail.position.set(0, 1.7, -2.0); tail.rotation.x = 0.25; tail.castShadow = true; g.add(tail);
+  const tailTip = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 1.4), mat);
+  tailTip.position.set(0, 1.95, -3.4); tailTip.rotation.x = 0.5; g.add(tailTip);
+
+  // legs (animated)
+  const legGeo = new THREE.BoxGeometry(0.35, 1.4, 0.45);
+  const legs = [];
+  for (const sx of [-0.45, 0.45]) {
+    const thigh = new THREE.Group(); thigh.position.set(sx, 1.4, -0.3);
+    const shin = new THREE.Mesh(legGeo, mat); shin.position.y = -0.7; shin.castShadow = true;
+    thigh.add(shin); g.add(thigh); legs.push(thigh);
+  }
+  // little arms
+  for (const sx of [-0.5, 0.5]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.6, 0.18), mat);
+    arm.position.set(sx, 1.7, 1.1); arm.rotation.x = -0.6; g.add(arm);
+  }
+
+  g.scale.setScalar(scale);
+  g.userData = {
+    kind, legs, head, jaw,
+    hp: isRex ? 6 : 3,
+    maxHp: isRex ? 6 : 3,
+    speed: isRex ? 7.5 : 9.5,
+    damage: isRex ? 28 : 12,
+    state: 'wander',
+    dir: Math.random()*Math.PI*2,
+    wanderT: 0,
+    attackCd: 0,
+    walkPhase: Math.random()*10,
+    radius: 1.2*scale,
+    detect: isRex ? 55 : 40,
+    alive: true,
+    flash: 0,
+    baseMat: mat,
+  };
+  return g;
+}
+const dinos = [];
+function spawnDino(kind, x, z) {
+  const d = makeDino(kind);
+  d.position.set(x, heightAt(x,z), z);
+  scene.add(d); dinos.push(d);
+  return d;
+}
+
+// ---------- Game state ----------
+const state = {
+  hp: 100, hunger: 100, stamina: 100,
+  meat: 0, score: 0,
+  velY: 0, onGround: true,
+  time: 6/24,        // day fraction (start 06:00)
+  day: 1,
+  alive: false,
+  running: false,
+  attackCd: 0,
+  hitFlash: 0,
+  elapsed: 0,
+};
+const EYE = 2.6;
+const GRAV = 26;
+
+// ---------- Input ----------
+const keys = {};
+let paused = false;
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'KeyE') eatMeat();
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+const PI = Math.PI;
+function onMouseMove(e) {
+  if (!state.running || paused) return;
+  yawObj.rotation.y   -= e.movementX * 0.0022;
+  pitchObj.rotation.x -= e.movementY * 0.0022;
+  pitchObj.rotation.x = Math.max(-PI/2 + 0.1, Math.min(PI/2 - 0.1, pitchObj.rotation.x));
+}
+document.addEventListener('mousemove', onMouseMove);
+document.addEventListener('mousedown', e => { if (e.button === 0 && state.running && !paused) attack(); });
+
+renderer.domElement.addEventListener('click', () => {
+  if (state.alive && !state.running) renderer.domElement.requestPointerLock();
+});
+document.addEventListener('pointerlockchange', () => {
+  const locked = document.pointerLockElement === renderer.domElement;
+  state.running = locked && state.alive;
+  paused = !locked && state.alive;
+  if (paused) showToast('PAUSA · clicca per riprendere');
+});
+
+// ---------- Audio (tiny WebAudio SFX) ----------
+let actx = null;
+function beep(freq, dur, type, vol) {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type || 'square'; o.frequency.value = freq;
+    g.gain.value = vol || 0.06;
+    o.connect(g); g.connect(actx.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
+    o.stop(actx.currentTime + dur);
+  } catch(e){}
+}
+
+// ---------- HUD ----------
+const hpFill = document.getElementById('hpFill');
+const hungerFill = document.getElementById('hungerFill');
+const stamFill = document.getElementById('stamFill');
+const scoreEl = document.getElementById('score');
+const clockEl = document.getElementById('clock');
+const threatEl = document.getElementById('threat');
+const toastEl = document.getElementById('toast');
+const fpsEl = document.getElementById('fps');
+let toastT = 0;
+function showToast(msg) { toastEl.textContent = msg; toastEl.style.opacity = 1; toastT = 2.2; }
+
+function updateHUD() {
+  hpFill.style.width = Math.max(0, state.hp) + '%';
+  hungerFill.style.width = Math.max(0, state.hunger) + '%';
+  stamFill.style.width = Math.max(0, state.stamina) + '%';
+  scoreEl.textContent = 'DINO ABBATTUTI: ' + state.score;
+  const hrs = Math.floor(state.time*24);
+  const mins = Math.floor((state.time*24 - hrs)*60);
+  const isNight = state.time < 0.25 || state.time > 0.78;
+  clockEl.textContent = (isNight ? '🌙 ' : '☀ ') + 'GIORNO ' + state.day + ' · ' +
+    String(hrs).padStart(2,'0') + ':' + String(mins).padStart(2,'0') +
+    (state.meat>0 ? '   🥩 x'+state.meat : '');
+}
+
+// ---------- Actions ----------
+function eatMeat() {
+  if (!state.running) return;
+  if (state.meat <= 0) { showToast('Niente carne! Abbatti un dino'); return; }
+  state.meat--;
+  state.hunger = Math.min(100, state.hunger + 35);
+  state.hp = Math.min(100, state.hp + 12);
+  beep(440, 0.12, 'sine', 0.05);
+  showToast('Hai mangiato 🥩 (+fame +vita)');
+}
+
+const forward = new THREE.Vector3();
+function attack() {
+  if (state.attackCd > 0) return;
+  state.attackCd = 0.45;
+  beep(180, 0.12, 'square', 0.05);
+  // attack cone in front of player
+  camera.getWorldDirection(forward);
+  const px = yawObj.position.x, pz = yawObj.position.z;
+  let hitSomething = false;
+  for (const d of dinos) {
+    if (!d.userData.alive) continue;
+    const dx = d.position.x - px, dz = d.position.z - pz;
+    const dist = Math.hypot(dx, dz);
+    if (dist > 5.5) continue;
+    const fdot = (dx/dist)*forward.x + (dz/dist)*forward.z;
+    if (fdot > 0.4) {
+      d.userData.hp -= 2;
+      d.userData.flash = 0.15;
+      hitSomething = true;
+      // knockback
+      d.position.x += (dx/dist) * 1.2;
+      d.position.z += (dz/dist) * 1.2;
+      if (d.userData.hp <= 0) killDino(d);
+    }
+  }
+  if (hitSomething) beep(120, 0.1, 'sawtooth', 0.06);
+}
+
+function killDino(d) {
+  d.userData.alive = false;
+  state.score++;
+  dropMeat(d.position.x, heightAt(d.position.x, d.position.z), d.position.z);
+  if (d.userData.kind === 'rex') dropMeat(d.position.x+2, heightAt(d.position.x+2, d.position.z), d.position.z);
+  beep(90, 0.3, 'sawtooth', 0.07);
+  showToast(d.userData.kind === 'rex' ? 'T-REX ABBATTUTO! 🦖' : 'Raptor abbattuto! 🦖');
+  // remove after short delay (fade by sinking)
+  d.userData.dyingT = 1.2;
+}
+
+// ---------- Spawning waves ----------
+let spawnTimer = 0;
+function maybeSpawn(dt) {
+  spawnTimer -= dt;
+  const liveCount = dinos.filter(d => d.userData.alive).length;
+  const cap = 5 + Math.floor(state.score/3) + state.day;
+  if (spawnTimer <= 0 && liveCount < cap) {
+    spawnTimer = Math.max(2.5, 6 - state.score*0.1);
+    const ang = Math.random()*Math.PI*2;
+    const rad = 70 + Math.random()*40;
+    const x = yawObj.position.x + Math.cos(ang)*rad;
+    const z = yawObj.position.z + Math.sin(ang)*rad;
+    const cx = THREE.MathUtils.clamp(x, -HALF+20, HALF-20);
+    const cz = THREE.MathUtils.clamp(z, -HALF+20, HALF-20);
+    const rex = (state.score >= 5 && Math.random() < 0.18) || (state.day >= 2 && Math.random() < 0.3);
+    spawnDino(rex ? 'rex' : 'raptor', cx, cz);
+  }
+}
+
+// ---------- Collision against obstacles ----------
+function resolveCollision(px, pz) {
+  for (const o of obstacles) {
+    const dx = px - o.x, dz = pz - o.z;
+    const d = Math.hypot(dx, dz);
+    const min = o.r + 0.8;
+    if (d < min && d > 0.0001) {
+      px = o.x + (dx/d)*min;
+      pz = o.z + (dz/d)*min;
+    }
+  }
+  return [THREE.MathUtils.clamp(px,-HALF+6,HALF-6), THREE.MathUtils.clamp(pz,-HALF+6,HALF-6)];
+}
+
+// ---------- Player update ----------
+const moveDir = new THREE.Vector3();
+function updatePlayer(dt) {
+  const sprint = keys['ShiftLeft'] && state.stamina > 1 && (keys['KeyW']||keys['KeyA']||keys['KeyS']||keys['KeyD']);
+  const speed = (sprint ? 13 : 6.5);
+  if (sprint) state.stamina = Math.max(0, state.stamina - 22*dt);
+  else state.stamina = Math.min(100, state.stamina + 10*dt);
+
+  moveDir.set(0,0,0);
+  if (keys['KeyW']) moveDir.z -= 1;
+  if (keys['KeyS']) moveDir.z += 1;
+  if (keys['KeyA']) moveDir.x -= 1;
+  if (keys['KeyD']) moveDir.x += 1;
+  if (moveDir.lengthSq() > 0) {
+    moveDir.normalize().applyEuler(new THREE.Euler(0, yawObj.rotation.y, 0));
+  }
+  let nx = yawObj.position.x + moveDir.x * speed * dt;
+  let nz = yawObj.position.z + moveDir.z * speed * dt;
+  [nx, nz] = resolveCollision(nx, nz);
+  yawObj.position.x = nx; yawObj.position.z = nz;
+
+  // jump + gravity
+  const groundY = heightAt(nx, nz) + EYE;
+  if (state.onGround && keys['Space']) { state.velY = 9.5; state.onGround = false; }
+  state.velY -= GRAV * dt;
+  yawObj.position.y += state.velY * dt;
+  if (yawObj.position.y <= groundY) { yawObj.position.y = groundY; state.velY = 0; state.onGround = true; }
+}
+
+// ---------- Dino AI ----------
+const tmp = new THREE.Vector3();
+function updateDinos(dt) {
+  const px = yawObj.position.x, pz = yawObj.position.z;
+  let nearestThreat = Infinity;
+  for (const d of dinos) {
+    const u = d.userData;
+    if (!u.alive) {
+      if (u.dyingT > 0) {
+        u.dyingT -= dt;
+        d.position.y -= dt*3;
+        d.rotation.z += dt*2;
+        if (u.dyingT <= 0) { scene.remove(d); }
+      }
+      continue;
+    }
+    const dx = px - d.position.x, dz = pz - d.position.z;
+    const dist = Math.hypot(dx, dz);
+
+    // flash material on hit
+    if (u.flash > 0) { u.flash -= dt; u.baseMat.emissive = new THREE.Color(0x661111); }
+    else u.baseMat.emissive = new THREE.Color(0x000000);
+
+    // state machine
+    if (dist < u.detect) u.state = 'chase';
+    else if (dist > u.detect*1.4) u.state = 'wander';
+
+    let mvx = 0, mvz = 0;
+    if (u.state === 'chase') {
+      mvx = dx/dist; mvz = dz/dist;
+      nearestThreat = Math.min(nearestThreat, dist);
+      // attack
+      if (dist < u.radius + 2.2) {
+        u.attackCd -= dt;
+        if (u.attackCd <= 0) {
+          u.attackCd = 1.1;
+          damagePlayer(u.damage);
+          u.jaw.rotation.x = 0.5; // chomp
+        }
+      }
+    } else {
+      // wander
+      u.wanderT -= dt;
+      if (u.wanderT <= 0) { u.dir += (Math.random()-0.5)*2; u.wanderT = 1.5 + Math.random()*2.5; }
+      mvx = Math.cos(u.dir); mvz = Math.sin(u.dir);
+    }
+
+    const sp = u.speed * (u.state==='chase' ? 1 : 0.4);
+    let nx2 = d.position.x + mvx * sp * dt;
+    let nz2 = d.position.z + mvz * sp * dt;
+    nx2 = THREE.MathUtils.clamp(nx2, -HALF+10, HALF-10);
+    nz2 = THREE.MathUtils.clamp(nz2, -HALF+10, HALF-10);
+    if (Math.abs(nx2) >= HALF-10 || Math.abs(nz2) >= HALF-10) u.dir += Math.PI; // bounce off edge
+    d.position.x = nx2; d.position.z = nz2;
+    d.position.y = heightAt(nx2, nz2);
+
+    // face movement direction
+    if (mvx || mvz) d.rotation.y = Math.atan2(mvx, mvz);
+
+    // leg animation
+    const moving = (u.state==='chase') || true;
+    u.walkPhase += dt * sp * 1.4;
+    u.legs[0].rotation.x = Math.sin(u.walkPhase) * 0.7;
+    u.legs[1].rotation.x = Math.sin(u.walkPhase + Math.PI) * 0.7;
+    // jaw relax
+    u.jaw.rotation.x = THREE.MathUtils.lerp(u.jaw.rotation.x, 0, dt*6);
+    // little body bob
+    d.children[0].position.y = 1.6 + Math.abs(Math.sin(u.walkPhase))*0.12;
+  }
+
+  // threat indicator
+  if (nearestThreat < 14) threatEl.textContent = '⚠ DINOSAURO VICINISSIMO!';
+  else if (nearestThreat < 40) threatEl.textContent = '⚠ predatore in caccia…';
+  else threatEl.textContent = '';
+}
+
+function damagePlayer(amount) {
+  state.hp -= amount;
+  state.hitFlash = 0.4;
+  beep(80, 0.18, 'square', 0.07);
+  if (state.hp <= 0) endGame('Sei stato divorato dai dinosauri.');
+}
+
+// ---------- Meat pickup update ----------
+function updateMeats(dt) {
+  const px = yawObj.position.x, pz = yawObj.position.z;
+  for (let i = meats.length-1; i >= 0; i--) {
+    const m = meats[i];
+    m.userData.t += dt;
+    m.position.y = heightAt(m.position.x, m.position.z) + 0.6 + Math.sin(m.userData.t*3)*0.1;
+    m.rotation.y += dt*2;
+    if (Math.hypot(m.position.x-px, m.position.z-pz) < 2.2) {
+      state.meat++; scene.remove(m); meats.splice(i,1);
+      beep(660, 0.08, 'sine', 0.05);
+      showToast('Raccolto 🥩 (premi E per mangiare)');
+    }
+  }
+}
+
+// ---------- Day / night ----------
+function updateDayNight(dt) {
+  state.time += dt / 120; // full day ~ 2 min
+  if (state.time >= 1) { state.time -= 1; state.day++; showToast('☀ GIORNO ' + state.day); }
+  const ang = (state.time - 0.25) * Math.PI * 2; // sun angle
+  const sx = Math.cos(ang), sy = Math.sin(ang);
+  sun.position.set(sx*120 + yawObj.position.x, Math.max(8, sy*120), sz()*60 + yawObj.position.z);
+  sun.target.position.set(yawObj.position.x, 0, yawObj.position.z);
+  const daylight = THREE.MathUtils.clamp(sy*1.4 + 0.25, 0, 1);
+  sun.intensity = 0.15 + daylight*1.1;
+  hemi.intensity = 0.25 + daylight*0.6;
+  const sky = SKY_NIGHT.clone().lerp(SKY_DAY, daylight);
+  // sunset tint
+  if (sy > -0.1 && sy < 0.35) sky.lerp(new THREE.Color(0xd98a4a), (0.35-Math.abs(sy-0.12))*0.6);
+  scene.background.copy(sky);
+  scene.fog.color.copy(sky);
+  sun.color.setHSL(0.09, 0.5, 0.5 + daylight*0.45);
+}
+function sz(){ return 0.3; }
+
+// ---------- Camera shake on hit ----------
+const overlayHit = document.createElement('div');
+overlayHit.style.cssText = 'position:fixed;inset:0;z-index:9;pointer-events:none;background:radial-gradient(circle,transparent 50%,rgba(180,0,0,0.6));opacity:0;transition:opacity .1s';
+document.body.appendChild(overlayHit);
+
+// ---------- Main loop ----------
+let last = performance.now();
+let fpsAcc = 0, fpsCount = 0, fpsTime = 0;
+function animate(now) {
+  requestAnimationFrame(animate);
+  let dt = (now - last) / 1000; last = now;
+  dt = Math.min(dt, 0.05); // clamp
+
+  // fps
+  fpsTime += dt; fpsCount++;
+  if (fpsTime > 0.5) { fpsEl.textContent = Math.round(fpsCount/fpsTime)+' FPS'; fpsCount=0; fpsTime=0; }
+
+  if (state.running && !paused) {
+    state.elapsed += dt;
+    state.attackCd = Math.max(0, state.attackCd - dt);
+    updatePlayer(dt);
+    updateDinos(dt);
+    updateMeats(dt);
+    updateDayNight(dt);
+    maybeSpawn(dt);
+
+    // hunger drain -> hp loss when starving
+    state.hunger = Math.max(0, state.hunger - 1.6*dt);
+    if (state.hunger <= 0) { state.hp -= 4*dt; if (state.hp <= 0) endGame('Sei morto di fame.'); }
+    else if (state.hp < 100) state.hp = Math.min(100, state.hp + 0.6*dt); // slow regen when fed
+
+    // hit flash overlay
+    if (state.hitFlash > 0) { state.hitFlash -= dt; overlayHit.style.opacity = Math.max(0, state.hitFlash); }
+    else overlayHit.style.opacity = 0;
+
+    // toast fade
+    if (toastT > 0) { toastT -= dt; if (toastT <= 0) toastEl.style.opacity = 0; }
+
+    updateHUD();
+  }
+
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+
+// ---------- Start / restart ----------
+function startGame() {
+  // reset
+  state.hp = 100; state.hunger = 100; state.stamina = 100;
+  state.meat = 0; state.score = 0; state.velY = 0; state.onGround = true;
+  state.time = 6/24; state.day = 1; state.alive = true; state.elapsed = 0;
+  state.attackCd = 0; state.hitFlash = 0;
+  spawnTimer = 1.5;
+  // clear dinos & meat
+  for (const d of dinos) scene.remove(d);
+  dinos.length = 0;
+  for (const m of meats) scene.remove(m);
+  meats.length = 0;
+  // place player
+  yawObj.position.set(0, heightAt(0,0)+EYE, 0);
+  yawObj.rotation.y = 0; pitchObj.rotation.x = 0;
+  // initial dinos
+  for (let i = 0; i < 4; i++) {
+    const a = Math.random()*Math.PI*2, r = 45+Math.random()*25;
+    spawnDino('raptor', Math.cos(a)*r, Math.sin(a)*r);
+  }
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('gameOver').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  renderer.domElement.requestPointerLock();
+}
+
+function endGame(reason) {
+  state.alive = false; state.running = false;
+  document.exitPointerLock && document.exitPointerLock();
+  document.getElementById('goReason').textContent = reason;
+  document.getElementById('goScore').textContent = 'Dino abbattuti: ' + state.score;
+  document.getElementById('goTime').textContent = 'Sopravvissuto: ' + Math.floor(state.elapsed) + 's · Giorno ' + state.day;
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('gameOver').classList.remove('hidden');
+}
+
+startBtn.addEventListener('click', startGame);
+document.getElementById('retryBtn').addEventListener('click', startGame);
+
+// ---------- Resize ----------
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+})();
+</script>
 </body>
 </html>
