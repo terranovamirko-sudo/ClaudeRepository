@@ -59,6 +59,11 @@
     font-size: 18px; font-weight: bold; letter-spacing: 2px; color: #06210a; background: linear-gradient(180deg,#9cff9c,#39c439);
     border: none; border-radius: 12px; box-shadow: 0 6px 0 #1c7a1c, 0 10px 20px rgba(0,0,0,.5); transition: transform .08s; }
   .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #1c7a1c, 0 6px 14px rgba(0,0,0,.5); }
+  .choose { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+  .pick { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 16px 26px; min-width: 170px; }
+  .pick .picon { font-size: 40px; line-height: 1; }
+  .pick small { font-weight: normal; font-size: 11px; letter-spacing: 1px; opacity: 0.8; }
+  #pickRex { background: linear-gradient(180deg,#ffb27a,#e0662f); box-shadow: 0 6px 0 #9c3d12, 0 10px 20px rgba(0,0,0,.5); }
   .credit { margin-top: 26px; font-size: 12px; opacity: 0.6; letter-spacing: 2px; }
   #loadNote { font-size: 13px; opacity: 0.7; margin-top: 14px; }
   #gameOver .title { color: #ff5a5a; text-shadow: 2px 2px 0 #7a1d1d, 4px 4px 0 #4a0c0c, 6px 8px 18px rgba(0,0,0,.7); }
@@ -179,7 +184,10 @@
       <span>Pausa</span><b>Esc</b>
     </div>
     <br>
-    <button class="btn" id="startBtn">INIZIA A SOPRAVVIVERE</button>
+    <div class="choose">
+      <button class="btn pick" id="pickHuman"><span class="picon">🧍</span>UMANO<small>Sopravvivi e caccia</small></button>
+      <button class="btn pick" id="pickRex"><span class="picon">🦖</span>T-REX<small>Predatore apex</small></button>
+    </div>
     <div id="loadNote">Caricamento motore 3D…</div>
     <div class="credit">WebGL · Three.js · Mondo procedurale</div>
   </div>
@@ -203,13 +211,12 @@
 
 // ---------- Boot / loading guard ----------
 const loadNote = document.getElementById('loadNote');
-const startBtn = document.getElementById('startBtn');
 if (typeof THREE === 'undefined') {
   loadNote.textContent = 'Errore: impossibile caricare Three.js (serve una connessione internet).';
   loadNote.style.color = '#ff8a8a';
   return;
 }
-loadNote.textContent = 'Motore pronto. Premi INIZIA (verrà bloccato il cursore del mouse).';
+loadNote.textContent = 'Motore pronto. Scegli il tuo personaggio per iniziare.';
 
 // ---------- Renderer / Scene / Camera ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -218,13 +225,15 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const SKY_DAY = new THREE.Color(0x87b6e8);
 const SKY_NIGHT = new THREE.Color(0x0b1226);
 scene.background = SKY_DAY.clone();
-scene.fog = new THREE.Fog(0x87b6e8, 40, 240);
+scene.fog = new THREE.Fog(0x87b6e8, 70, 360);
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 1000);
 
@@ -276,8 +285,64 @@ function makePlayer() {
   g.userData = { armL, armR, legL, legR, head };
   return g;
 }
-const player = makePlayer();
+
+// ---------- Playable T-Rex model ----------
+function makePlayerRex() {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x6f5a38, roughness: 0.9, flatShading: true });
+  const belly = new THREE.MeshStandardMaterial({ color: 0xa68a58, roughness: 0.9, flatShading: true });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.5, 3.0), mat); body.position.y = 2.4; body.castShadow = true; g.add(body);
+  const bel  = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.55, 2.6), belly); bel.position.set(0, 1.85, 0); g.add(bel);
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.95, 1.1), mat); neck.position.set(0, 3.2, 1.6); neck.rotation.x = -0.4; neck.castShadow = true; g.add(neck);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 1.7), mat); head.position.set(0, 3.7, 2.7); head.castShadow = true; g.add(head);
+  const jaw  = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.35, 1.4), belly); jaw.position.set(0, 3.35, 2.95); g.add(jaw);
+  const eyeGeo = new THREE.SphereGeometry(0.12, 6, 6);
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffd400, emissive: 0x553300 });
+  for (const sx of [-1, 1]) { const e = new THREE.Mesh(eyeGeo, eyeMat); e.position.set(sx*0.38, 3.95, 3.0); g.add(e); }
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.85, 3.0), mat); tail.position.set(0, 2.5, -2.6); tail.rotation.x = 0.22; tail.castShadow = true; g.add(tail);
+  const tailTip = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 1.9), mat); tailTip.position.set(0, 2.9, -4.4); tailTip.rotation.x = 0.45; g.add(tailTip);
+
+  const legGeo = new THREE.BoxGeometry(0.5, 2.0, 0.65);
+  const legs = [];
+  for (const sx of [-0.55, 0.55]) {
+    const thigh = new THREE.Group(); thigh.position.set(sx, 2.0, -0.3);
+    const shin = new THREE.Mesh(legGeo, mat); shin.position.y = -1.0; shin.castShadow = true;
+    thigh.add(shin); g.add(thigh); legs.push(thigh);
+  }
+  for (const sx of [-0.6, 0.6]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.7, 0.22), mat);
+    arm.position.set(sx, 2.6, 1.4); arm.rotation.x = -0.6; g.add(arm);
+  }
+  g.userData = { pParts: { type: 'rex', legs, jaw, head } };
+  return g;
+}
+
+// Per-character tuning
+const KIND = {
+  human: { camDist: 8.5,  camHeight: 3.4, lookY: 2.4, clamp: 1.3, walk: 6.5, run: 13, reach: 5.5, dmgTaken: 1.0,  attackDmg: 2, knock: 1.2 },
+  rex:   { camDist: 18,   camHeight: 7.5, lookY: 4.2, clamp: 2.2, walk: 9.0, run: 17, reach: 9.0, dmgTaken: 0.4, attackDmg: 4, knock: 2.4 },
+};
+let playerKind = 'human';
+let player = makePlayer();
+let pParts = (function(u){ return { type:'human', armL:u.armL, armR:u.armR, legL:u.legL, legR:u.legR }; })(player.userData);
+player.rotation.y = Math.PI;   // face -Z (movement forward), away from the camera
 yawObj.add(player);
+
+function setupPlayer(kind) {
+  playerKind = kind;
+  if (player) yawObj.remove(player);
+  if (kind === 'rex') {
+    player = makePlayerRex();
+    pParts = player.userData.pParts;
+  } else {
+    player = makePlayer();
+    const u = player.userData;
+    pParts = { type:'human', armL:u.armL, armR:u.armR, legL:u.legL, legR:u.legR };
+  }
+  player.rotation.y = Math.PI;
+  yawObj.add(player);
+}
 
 // ---------- Lights ----------
 const hemi = new THREE.HemisphereLight(0xbfd9ff, 0x4a6b3a, 0.7);
@@ -406,6 +471,132 @@ const water = new THREE.Mesh(
   new THREE.MeshStandardMaterial({ color: 0x2d6c8f, transparent: true, opacity: 0.7, roughness: 0.2, metalness: 0.3 })
 );
 water.rotation.x = -Math.PI/2; water.position.y = -3; scene.add(water);
+
+// ================= ATMOSPHERE / GRAPHICS =================
+
+// ---------- Gradient sky dome (not affected by fog) ----------
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: {
+    topCol: { value: new THREE.Color(0x2f6fc4) },
+    botCol: { value: new THREE.Color(0xcfe6ff) },
+  },
+  vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+  fragmentShader: 'varying vec3 vP; uniform vec3 topCol; uniform vec3 botCol; void main(){ float h = clamp(normalize(vP).y*0.6+0.35, 0.0, 1.0); gl_FragColor = vec4(mix(botCol, topCol, h), 1.0); }'
+});
+const skyDome = new THREE.Mesh(new THREE.SphereGeometry(620, 32, 16), skyMat);
+scene.add(skyDome);
+
+// ---------- Distant mountain ring (horizon depth) ----------
+const mountains = new THREE.Group();
+{
+  const mMat = new THREE.MeshStandardMaterial({ color: 0x4a5d77, roughness: 1, flatShading: true });
+  const n = 46;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random()*0.06;
+    const rad = 250 + Math.random()*40;
+    const h = 60 + Math.random()*90;
+    const peak = new THREE.Mesh(new THREE.ConeGeometry(45 + Math.random()*35, h, 5), mMat);
+    peak.position.set(Math.cos(a)*rad, h/2 - 14, Math.sin(a)*rad);
+    peak.rotation.y = Math.random()*Math.PI;
+    mountains.add(peak);
+  }
+}
+scene.add(mountains);
+
+// ---------- Sun glow billboard ----------
+function radialTexture(inner, outer) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, inner); g.addColorStop(0.4, outer); g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t;
+}
+const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: radialTexture('rgba(255,255,235,1)', 'rgba(255,210,120,0.7)'),
+  transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending
+}));
+sunSprite.scale.setScalar(90);
+scene.add(sunSprite);
+
+// ---------- Drifting clouds ----------
+const clouds = new THREE.Group();
+{
+  const cMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, transparent: true, opacity: 0.85, flatShading: true });
+  for (let i = 0; i < 14; i++) {
+    const puff = new THREE.Group();
+    const blobs = 3 + Math.floor(Math.random()*4);
+    for (let b = 0; b < blobs; b++) {
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(6 + Math.random()*6, 0), cMat);
+      m.position.set((Math.random()-0.5)*22, (Math.random()-0.5)*4, (Math.random()-0.5)*10);
+      m.scale.y = 0.6; puff.add(m);
+    }
+    puff.position.set((Math.random()-0.5)*460, 70 + Math.random()*40, (Math.random()-0.5)*460);
+    puff.userData.spd = 1.5 + Math.random()*2.5;
+    clouds.add(puff);
+  }
+}
+scene.add(clouds);
+
+// ---------- Flying pterodactyls ----------
+const birds = new THREE.Group();
+{
+  const bMat = new THREE.MeshStandardMaterial({ color: 0x2c2c33, roughness: 1, flatShading: true, side: THREE.DoubleSide });
+  for (let i = 0; i < 7; i++) {
+    const bird = new THREE.Group();
+    const wingGeo = new THREE.BoxGeometry(5, 0.15, 1.6);
+    const wL = new THREE.Mesh(wingGeo, bMat); wL.position.x = -2.6;
+    const wR = new THREE.Mesh(wingGeo, bMat); wR.position.x = 2.6;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 2.4), bMat);
+    bird.add(wL, wR, body);
+    bird.userData = {
+      wL, wR, radius: 60 + Math.random()*90, height: 55 + Math.random()*40,
+      ang: Math.random()*Math.PI*2, spd: 0.12 + Math.random()*0.1, flap: Math.random()*10,
+    };
+    birds.add(bird);
+  }
+}
+scene.add(birds);
+
+// ---------- Atmospheric dust motes ----------
+let dust;
+{
+  const N = 320, pos = new Float32Array(N*3);
+  for (let i = 0; i < N; i++) {
+    pos[i*3]   = (Math.random()-0.5)*160;
+    pos[i*3+1] = Math.random()*40;
+    pos[i*3+2] = (Math.random()-0.5)*160;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  dust = new THREE.Points(g, new THREE.PointsMaterial({
+    color: 0xfff2cc, size: 0.5, transparent: true, opacity: 0.5, depthWrite: false,
+    blending: THREE.AdditiveBlending, fog: true
+  }));
+  scene.add(dust);
+}
+
+function updateAtmosphere(dt) {
+  // clouds drift and wrap around
+  for (const p of clouds.children) {
+    p.position.x += p.userData.spd * dt;
+    if (p.position.x > 240) p.position.x = -240;
+  }
+  // birds circle and flap
+  for (const b of birds.children) {
+    const u = b.userData;
+    u.ang += u.spd * dt; u.flap += dt * 6;
+    b.position.set(Math.cos(u.ang)*u.radius, u.height, Math.sin(u.ang)*u.radius);
+    b.rotation.y = -u.ang;
+    const f = Math.sin(u.flap) * 0.5;
+    u.wL.rotation.z = f; u.wR.rotation.z = -f;
+  }
+  // keep dust around the player
+  dust.position.x = yawObj.position.x;
+  dust.position.z = yawObj.position.z;
+  dust.rotation.y += dt * 0.05;
+}
 
 // ---------- Carcass / meat pickups ----------
 const meatGeo = new THREE.SphereGeometry(0.5, 8, 6);
@@ -706,7 +897,7 @@ function updateHUD() {
   hpFill.style.width = Math.max(0, state.hp) + '%';
   hungerFill.style.width = Math.max(0, state.hunger) + '%';
   stamFill.style.width = Math.max(0, state.stamina) + '%';
-  scoreEl.textContent = 'DINO ABBATTUTI: ' + state.score;
+  scoreEl.textContent = (playerKind === 'rex' ? 'PREDE CACCIATE: ' : 'DINO ABBATTUTI: ') + state.score;
   const hrs = Math.floor(state.time*24);
   const mins = Math.floor((state.time*24 - hrs)*60);
   const isNight = state.time < 0.25 || state.time > 0.78;
@@ -729,9 +920,10 @@ function eatMeat() {
 const forward = new THREE.Vector3();
 function attack() {
   if (state.attackCd > 0) return;
+  const cfg = KIND[playerKind];
   state.attackCd = 0.45;
-  state.attackAnim = 0.32;   // trigger spear thrust animation
-  beep(180, 0.12, 'square', 0.05);
+  state.attackAnim = 0.32;   // trigger thrust / bite animation
+  beep(playerKind === 'rex' ? 120 : 180, 0.14, playerKind === 'rex' ? 'sawtooth' : 'square', 0.06);
   // attack cone in the direction the character faces (yaw)
   forward.set(-Math.sin(yaw), 0, -Math.cos(yaw));
   const px = yawObj.position.x, pz = yawObj.position.z;
@@ -740,19 +932,19 @@ function attack() {
     if (!d.userData.alive) continue;
     const dx = d.position.x - px, dz = d.position.z - pz;
     const dist = Math.hypot(dx, dz);
-    if (dist > 5.5) continue;
+    if (dist > cfg.reach) continue;
     const fdot = (dx/dist)*forward.x + (dz/dist)*forward.z;
     if (fdot > 0.4) {
-      d.userData.hp -= 2;
+      d.userData.hp -= cfg.attackDmg;
       d.userData.flash = 0.15;
       hitSomething = true;
       // knockback
-      d.position.x += (dx/dist) * 1.2;
-      d.position.z += (dz/dist) * 1.2;
+      d.position.x += (dx/dist) * cfg.knock;
+      d.position.z += (dz/dist) * cfg.knock;
       if (d.userData.hp <= 0) killDino(d);
     }
   }
-  if (hitSomething) beep(120, 0.1, 'sawtooth', 0.06);
+  if (hitSomething) beep(playerKind === 'rex' ? 70 : 120, 0.12, 'sawtooth', 0.07);
 }
 
 function killDino(d) {
@@ -825,8 +1017,9 @@ function updatePlayer(dt) {
   if (moveDir.lengthSq() > 1) moveDir.normalize();
   const moving = moveDir.lengthSq() > 0.01;
 
+  const cfg = KIND[playerKind];
   const sprint = (keys['ShiftLeft'] || runHeld) && state.stamina > 1 && moving;
-  const speed = (sprint ? 13 : 6.5);
+  const speed = (sprint ? cfg.run : cfg.walk);
   if (sprint) state.stamina = Math.max(0, state.stamina - 22*dt);
   else state.stamina = Math.min(100, state.stamina + 10*dt);
 
@@ -846,39 +1039,58 @@ function updatePlayer(dt) {
   if (yawObj.position.y <= groundY) { yawObj.position.y = groundY; state.velY = 0; state.onGround = true; }
 
   // ---- character animation ----
-  const pu = player.userData;
-  if (moving) {
-    playerPhase += dt * (sprint ? 17 : 11);
-    pu.legL.rotation.x = Math.sin(playerPhase) * 0.6;
-    pu.legR.rotation.x = Math.sin(playerPhase + Math.PI) * 0.6;
-    pu.armL.rotation.x = Math.sin(playerPhase + Math.PI) * 0.4;
-  } else {
-    pu.legL.rotation.x *= 0.8; pu.legR.rotation.x *= 0.8; pu.armL.rotation.x *= 0.8;
+  if (pParts.type === 'human') {
+    if (moving) {
+      playerPhase += dt * (sprint ? 17 : 11);
+      pParts.legL.rotation.x = Math.sin(playerPhase) * 0.6;
+      pParts.legR.rotation.x = Math.sin(playerPhase + Math.PI) * 0.6;
+      pParts.armL.rotation.x = Math.sin(playerPhase + Math.PI) * 0.4;
+    } else {
+      pParts.legL.rotation.x *= 0.8; pParts.legR.rotation.x *= 0.8; pParts.armL.rotation.x *= 0.8;
+    }
+    // spear thrust on the right arm
+    if (state.attackAnim > 0) {
+      const t = 1 - (state.attackAnim / 0.32);
+      pParts.armR.rotation.x = -Math.sin(t * Math.PI) * 1.9;
+    } else {
+      pParts.armR.rotation.x = THREE.MathUtils.lerp(pParts.armR.rotation.x, 0, dt*8);
+    }
+  } else { // rex
+    if (moving) {
+      playerPhase += dt * (sprint ? 13 : 9);
+      pParts.legs[0].rotation.x = Math.sin(playerPhase) * 0.7;
+      pParts.legs[1].rotation.x = Math.sin(playerPhase + Math.PI) * 0.7;
+      player.position.y = Math.abs(Math.sin(playerPhase)) * 0.15; // body bob
+    } else {
+      pParts.legs[0].rotation.x *= 0.8; pParts.legs[1].rotation.x *= 0.8;
+      player.position.y *= 0.8;
+    }
+    // bite (jaw chomp) on attack
+    if (state.attackAnim > 0) {
+      const t = 1 - (state.attackAnim / 0.32);
+      pParts.jaw.rotation.x = Math.sin(t * Math.PI) * 0.6;
+    } else {
+      pParts.jaw.rotation.x = THREE.MathUtils.lerp(pParts.jaw.rotation.x, 0, dt*8);
+    }
   }
-  // spear thrust on the right arm
-  if (state.attackAnim > 0) {
-    state.attackAnim -= dt;
-    const t = 1 - (state.attackAnim / 0.32);
-    pu.armR.rotation.x = -Math.sin(t * Math.PI) * 1.9;
-  } else {
-    pu.armR.rotation.x = THREE.MathUtils.lerp(pu.armR.rotation.x, 0, dt*8);
-  }
+  if (state.attackAnim > 0) state.attackAnim -= dt;
 }
 
 // ---------- Third-person camera follow ----------
 const camLook = new THREE.Vector3();
 function updateCamera() {
+  const cfg = KIND[playerKind];
   const px = yawObj.position.x, py = yawObj.position.y, pz = yawObj.position.z;
-  const dist = 8.0;
+  const dist = cfg.camDist;
   const horiz = Math.cos(pitch) * dist;
   let cx = px + Math.sin(yaw) * horiz;
   let cz = pz + Math.cos(yaw) * horiz;
-  let cy = py + 3.4 + Math.sin(pitch) * dist;
+  let cy = py + cfg.camHeight + Math.sin(pitch) * dist;
   // keep the camera from sinking into the terrain
-  const minY = heightAt(cx, cz) + 1.3;
+  const minY = heightAt(cx, cz) + cfg.clamp;
   if (cy < minY) cy = minY;
   camera.position.set(cx, cy, cz);
-  camLook.set(px, py + 2.4, pz);
+  camLook.set(px, py + cfg.lookY, pz);
   camera.lookAt(camLook);
 }
 
@@ -967,10 +1179,10 @@ function updateDinos(dt) {
 }
 
 function damagePlayer(amount) {
-  state.hp -= amount;
+  state.hp -= amount * KIND[playerKind].dmgTaken;
   state.hitFlash = 0.4;
   beep(80, 0.18, 'square', 0.07);
-  if (state.hp <= 0) endGame('Sei stato divorato dai dinosauri.');
+  if (state.hp <= 0) endGame(playerKind === 'rex' ? 'Il tuo T-Rex è stato sopraffatto.' : 'Sei stato divorato dai dinosauri.');
 }
 
 // ---------- Meat pickup update ----------
@@ -1001,11 +1213,32 @@ function updateDayNight(dt) {
   sun.intensity = 0.15 + daylight*1.1;
   hemi.intensity = 0.25 + daylight*0.6;
   const sky = SKY_NIGHT.clone().lerp(SKY_DAY, daylight);
-  // sunset tint
-  if (sy > -0.1 && sy < 0.35) sky.lerp(new THREE.Color(0xd98a4a), (0.35-Math.abs(sy-0.12))*0.6);
+  // sunset tint near the horizon
+  const sunset = (sy > -0.1 && sy < 0.35) ? (0.35 - Math.abs(sy - 0.12)) * 0.6 : 0;
+  if (sunset > 0) sky.lerp(new THREE.Color(0xd98a4a), sunset);
   scene.background.copy(sky);
   scene.fog.color.copy(sky);
   sun.color.setHSL(0.09, 0.5, 0.5 + daylight*0.45);
+
+  // sky dome gradient: deep top, hazy bottom blending into the fog horizon
+  const topDay = new THREE.Color(0x2f6fc4), topNight = new THREE.Color(0x06102a);
+  const skyTop = topNight.clone().lerp(topDay, daylight);
+  if (sunset > 0) skyTop.lerp(new THREE.Color(0x9c4a6a), sunset*0.5);
+  skyMat.uniforms.topCol.value.copy(skyTop);
+  skyMat.uniforms.botCol.value.copy(sky);
+
+  // sun billboard follows the light, fades at night
+  sunSprite.position.set(sun.position.x, sun.position.y, sun.position.z);
+  const sunVis = THREE.MathUtils.clamp(sy*2.0 + 0.2, 0, 1);
+  sunSprite.material.opacity = sunVis;
+  sunSprite.material.color.setHSL(0.11, 0.6, 0.6 + sunset*0.2);
+
+  // mountains tint with the light
+  mountains.children.length && mountains.traverse(o => { if (o.material) o.material.color.setRGB(
+    0.18 + daylight*0.16, 0.22 + daylight*0.18, 0.32 + daylight*0.18); });
+
+  // tone down exposure at night
+  renderer.toneMappingExposure = 0.7 + daylight*0.45;
 }
 function sz(){ return 0.3; }
 
@@ -1033,6 +1266,7 @@ function animate(now) {
     updateDinos(dt);
     updateMeats(dt);
     updateDayNight(dt);
+    updateAtmosphere(dt);
     updateCamera(dt);
     maybeSpawn(dt);
 
@@ -1056,7 +1290,9 @@ function animate(now) {
 requestAnimationFrame(animate);
 
 // ---------- Start / restart ----------
-function startGame() {
+function startGame(kind) {
+  setupPlayer(kind === 'rex' ? 'rex' : 'human');
+  scoreEl.textContent = (playerKind === 'rex' ? 'PREDE CACCIATE: 0' : 'DINO ABBATTUTI: 0');
   // reset
   state.hp = 100; state.hunger = 100; state.stamina = 100;
   state.meat = 0; state.score = 0; state.velY = 0; state.onGround = true;
@@ -1112,8 +1348,9 @@ function endGame(reason) {
   document.body.classList.remove('playing');
 }
 
-startBtn.addEventListener('click', startGame);
-document.getElementById('retryBtn').addEventListener('click', startGame);
+document.getElementById('pickHuman').addEventListener('click', () => startGame('human'));
+document.getElementById('pickRex').addEventListener('click', () => startGame('rex'));
+document.getElementById('retryBtn').addEventListener('click', () => startGame(playerKind));
 
 // ---------- Fullscreen & orientation ----------
 const fsBtn = document.getElementById('fsBtn');
