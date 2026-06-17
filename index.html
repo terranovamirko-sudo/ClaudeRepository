@@ -99,6 +99,26 @@
     .panel { padding: 22px 18px; }
     .keys { grid-template-columns: auto auto; font-size: 12px; }
   }
+
+  /* Fullscreen button */
+  #fsBtn {
+    position: fixed; top: 12px; right: 12px; z-index: 30; pointer-events: auto; cursor: pointer;
+    width: 42px; height: 42px; border-radius: 9px; background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.35); color: #fff; font-size: 20px;
+    display: flex; align-items: center; justify-content: center; user-select: none;
+  }
+  #fsBtn:active { background: rgba(255,255,255,0.3); }
+
+  /* Rotate-to-landscape prompt (mobile portrait only) */
+  #rotate {
+    display: none; position: fixed; inset: 0; z-index: 50; background: rgba(5,7,12,0.97);
+    flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 20px;
+  }
+  #rotate .ph { font-size: 64px; animation: rotanim 1.8s ease-in-out infinite; }
+  @keyframes rotanim { 0%,100% { transform: rotate(0deg); } 55% { transform: rotate(90deg); } }
+  @media (orientation: portrait) and (max-width: 900px) {
+    #rotate.may { display: flex; }
+  }
 </style>
 </head>
 <body>
@@ -127,14 +147,22 @@
   </div>
 </div>
 
+<div id="fsBtn" title="Schermo intero">⛶</div>
+
+<div id="rotate">
+  <div class="ph">📱</div>
+  <div style="font-size:20px;font-weight:bold;letter-spacing:1px;">Ruota il dispositivo</div>
+  <div style="opacity:0.8;">Gioca in orizzontale per la migliore esperienza</div>
+</div>
+
 <div id="start" class="overlay">
   <div class="panel">
     <div class="title">DINO SURVIVAL</div>
     <div class="subtitle">UNA CREAZIONE DI MIRKO TERRANOVA</div>
     <div class="desc">
-      Sei bloccato in una valle preistorica al tramonto. I dinosauri sono affamati e tu sei la preda.
-      Sopravvivi più a lungo possibile: tieni d'occhio <b>vita</b>, <b>fame</b> e <b>stamina</b>,
-      combatti i raptor e raccogli carne per non morire di fame.
+      Sei bloccato in una valle preistorica al tramonto. I raptor e i T-rex sono affamati e tu sei la preda.
+      Caccia i <b>dinosauri erbivori</b> (innocui) per fare scorta di carne, combatti i predatori
+      e tieni d'occhio <b>vita</b>, <b>fame</b> e <b>stamina</b> per sopravvivere il più a lungo possibile.
     </div>
     <div class="desc" style="margin-top:-8px;font-size:13px;opacity:0.75;">
       📱 Su smartphone: <b>joystick</b> a sinistra per muoverti, <b>trascina</b> a destra per guardarti intorno,
@@ -197,14 +225,58 @@ const SKY_NIGHT = new THREE.Color(0x0b1226);
 scene.background = SKY_DAY.clone();
 scene.fog = new THREE.Fog(0x87b6e8, 40, 240);
 
-const camera = new THREE.PerspectiveCamera(72, window.innerWidth/window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 1000);
 
-// Player rig: yaw object holds pitch object holds camera
+// Player rig (third person): yawObj anchors the character at ground level,
+// the camera orbits behind it driven by `yaw` / `pitch`.
 const yawObj = new THREE.Object3D();
-const pitchObj = new THREE.Object3D();
-yawObj.add(pitchObj);
-pitchObj.add(camera);
 scene.add(yawObj);
+scene.add(camera);
+let yaw = 0;        // horizontal facing / orbit
+let pitch = 0.38;   // camera elevation (0 = level, higher = look down)
+let playerPhase = 0; // walk-cycle phase for the character
+
+// ---------- Player character (low-poly survivor) ----------
+function makePlayer() {
+  const g = new THREE.Group();
+  const skin  = new THREE.MeshStandardMaterial({ color: 0xc98a5a, roughness: 1, flatShading: true });
+  const cloth = new THREE.MeshStandardMaterial({ color: 0x356b86, roughness: 1, flatShading: true });
+  const pants = new THREE.MeshStandardMaterial({ color: 0x394a36, roughness: 1, flatShading: true });
+  const hair  = new THREE.MeshStandardMaterial({ color: 0x2a1d12, roughness: 1 });
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.1, 0.5), cloth);
+  torso.position.y = 2.0; torso.castShadow = true; g.add(torso);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.6, 0.55), skin);
+  head.position.y = 2.95; head.castShadow = true; g.add(head);
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.22, 0.6), hair);
+  cap.position.y = 3.22; g.add(cap);
+
+  function makeArm(sx) {
+    const pivot = new THREE.Group(); pivot.position.set(sx, 2.45, 0);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.0, 0.25), skin);
+    m.position.y = -0.5; m.castShadow = true; pivot.add(m); g.add(pivot); return pivot;
+  }
+  const armL = makeArm(-0.55), armR = makeArm(0.55);
+  // spear held in right hand
+  const spear = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 5),
+    new THREE.MeshStandardMaterial({ color: 0x6b4a2a, roughness: 1 }));
+  spear.position.set(0, -0.9, 0.15); spear.castShadow = true; armR.add(spear);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.4, 5),
+    new THREE.MeshStandardMaterial({ color: 0xd8d8d8, metalness: 0.4, roughness: 0.4 }));
+  tip.position.set(0, -2.05, 0.15); armR.add(tip);
+
+  function makeLeg(sx) {
+    const pivot = new THREE.Group(); pivot.position.set(sx, 1.45, 0);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.4, 0.32), pants);
+    m.position.y = -0.7; m.castShadow = true; pivot.add(m); g.add(pivot); return pivot;
+  }
+  const legL = makeLeg(-0.24), legR = makeLeg(0.24);
+
+  g.userData = { armL, armR, legL, legR, head };
+  return g;
+}
+const player = makePlayer();
+yawObj.add(player);
 
 // ---------- Lights ----------
 const hemi = new THREE.HemisphereLight(0xbfd9ff, 0x4a6b3a, 0.7);
@@ -415,9 +487,64 @@ function makeDino(kind) {
   };
   return g;
 }
+// ---------- Herbivore factory (long-necked sauropod, harmless) ----------
+function makeHerbivore() {
+  const g = new THREE.Group();
+  const col = 0x5f86a8, bellyCol = 0x9fc0d4;
+  const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.95, flatShading: true });
+  const belly = new THREE.MeshStandardMaterial({ color: bellyCol, roughness: 0.95, flatShading: true });
+  const scale = 2.6;
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.7, 3.4), mat);
+  body.position.y = 2.4; body.castShadow = true; g.add(body);
+  const bellyMesh = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.7, 3.0), belly);
+  bellyMesh.position.set(0, 1.9, 0); g.add(bellyMesh);
+
+  // long neck (several segments going up & forward)
+  const neckParts = [];
+  for (let i = 0; i < 4; i++) {
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.7 - i*0.08, 0.7 - i*0.08, 1.0), mat);
+    seg.position.set(0, 3.2 + i*0.85, 1.7 + i*0.85);
+    seg.castShadow = true; g.add(seg); neckParts.push(seg);
+  }
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 1.0), mat);
+  head.position.set(0, 6.4, 5.2); head.castShadow = true; g.add(head);
+  const eyeGeo = new THREE.SphereGeometry(0.08, 6, 6);
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+  for (const sx of [-1, 1]) { const e = new THREE.Mesh(eyeGeo, eyeMat); e.position.set(sx*0.22, 6.55, 5.5); g.add(e); }
+
+  // long tail
+  for (let i = 0; i < 4; i++) {
+    const t = new THREE.Mesh(new THREE.BoxGeometry(0.6 - i*0.12, 0.6 - i*0.12, 1.2), mat);
+    t.position.set(0, 2.4 - i*0.1, -2.2 - i*1.0); t.castShadow = true; g.add(t);
+  }
+
+  // 4 legs (animated in pairs)
+  const legGeo = new THREE.BoxGeometry(0.6, 2.2, 0.6);
+  const legs = [];
+  const legPos = [[-0.7, 1.2], [0.7, 1.2], [-0.7, -1.2], [0.7, -1.2]];
+  for (const [sx, sz2] of legPos) {
+    const thigh = new THREE.Group(); thigh.position.set(sx, 2.0, sz2);
+    const shin = new THREE.Mesh(legGeo, mat); shin.position.y = -1.1; shin.castShadow = true;
+    thigh.add(shin); g.add(thigh); legs.push(thigh);
+  }
+
+  g.scale.setScalar(scale);
+  g.userData = {
+    kind: 'herb', legs, head, jaw: null,
+    hp: 5, maxHp: 5,
+    speed: 6.0, damage: 0,
+    state: 'wander', dir: Math.random()*Math.PI*2, wanderT: 0,
+    attackCd: 0, walkPhase: Math.random()*10,
+    radius: 1.6*scale, detect: 26, fleeRange: 22,
+    alive: true, flash: 0, baseMat: mat,
+  };
+  return g;
+}
+
 const dinos = [];
 function spawnDino(kind, x, z) {
-  const d = makeDino(kind);
+  const d = (kind === 'herb') ? makeHerbivore() : makeDino(kind);
   d.position.set(x, heightAt(x,z), z);
   scene.add(d); dinos.push(d);
   return d;
@@ -504,9 +631,9 @@ let runHeld = false;        // run button held
       const dx = t.clientX - lookX, dy = t.clientY - lookY;
       lookX = t.clientX; lookY = t.clientY;
       if (!state.running || paused) continue;
-      yawObj.rotation.y   -= dx * 0.005;
-      pitchObj.rotation.x -= dy * 0.005;
-      pitchObj.rotation.x = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitchObj.rotation.x));
+      yaw   -= dx * 0.005;
+      pitch -= dy * 0.005;
+      pitch = Math.max(-0.15, Math.min(1.25, pitch));
     }
     e.preventDefault();
   }, { passive: false });
@@ -530,9 +657,9 @@ let runHeld = false;        // run button held
 const PI = Math.PI;
 function onMouseMove(e) {
   if (!state.running || paused) return;
-  yawObj.rotation.y   -= e.movementX * 0.0022;
-  pitchObj.rotation.x -= e.movementY * 0.0022;
-  pitchObj.rotation.x = Math.max(-PI/2 + 0.1, Math.min(PI/2 - 0.1, pitchObj.rotation.x));
+  yaw   -= e.movementX * 0.0024;
+  pitch -= e.movementY * 0.0024;
+  pitch = Math.max(-0.15, Math.min(1.25, pitch));
 }
 document.addEventListener('mousemove', onMouseMove);
 document.addEventListener('mousedown', e => { if (e.button === 0 && state.running && !paused) attack(); });
@@ -602,9 +729,10 @@ const forward = new THREE.Vector3();
 function attack() {
   if (state.attackCd > 0) return;
   state.attackCd = 0.45;
+  state.attackAnim = 0.32;   // trigger spear thrust animation
   beep(180, 0.12, 'square', 0.05);
-  // attack cone in front of player
-  camera.getWorldDirection(forward);
+  // attack cone in the direction the character faces (yaw)
+  forward.set(-Math.sin(yaw), 0, -Math.cos(yaw));
   const px = yawObj.position.x, pz = yawObj.position.z;
   let hitSomething = false;
   for (const d of dinos) {
@@ -627,23 +755,32 @@ function attack() {
 }
 
 function killDino(d) {
-  d.userData.alive = false;
-  state.score++;
-  dropMeat(d.position.x, heightAt(d.position.x, d.position.z), d.position.z);
-  if (d.userData.kind === 'rex') dropMeat(d.position.x+2, heightAt(d.position.x+2, d.position.z), d.position.z);
+  const u = d.userData;
+  u.alive = false;
+  const x = d.position.x, z = d.position.z, gy = heightAt(x, z);
+  dropMeat(x, gy, z);
+  if (u.kind === 'rex' || u.kind === 'herb') dropMeat(x+2, heightAt(x+2, z), z);
+  if (u.kind === 'herb') dropMeat(x-2, heightAt(x-2, z), z); // erbivori = molta carne
   beep(90, 0.3, 'sawtooth', 0.07);
-  showToast(d.userData.kind === 'rex' ? 'T-REX ABBATTUTO! 🦖' : 'Raptor abbattuto! 🦖');
+  if (u.kind === 'herb') {
+    showToast('Erbivoro cacciato 🥩🥩 (tanta carne!)');
+  } else {
+    state.score++;
+    showToast(u.kind === 'rex' ? 'T-REX ABBATTUTO! 🦖' : 'Raptor abbattuto! 🦖');
+  }
   // remove after short delay (fade by sinking)
-  d.userData.dyingT = 1.2;
+  u.dyingT = 1.2;
 }
 
 // ---------- Spawning waves ----------
 let spawnTimer = 0;
 function maybeSpawn(dt) {
   spawnTimer -= dt;
-  const liveCount = dinos.filter(d => d.userData.alive).length;
+  const live = dinos.filter(d => d.userData.alive);
+  const carnivores = live.filter(d => d.userData.kind !== 'herb').length;
+  const herbs = live.filter(d => d.userData.kind === 'herb').length;
   const cap = 5 + Math.floor(state.score/3) + state.day;
-  if (spawnTimer <= 0 && liveCount < cap) {
+  if (spawnTimer <= 0 && carnivores < cap) {
     spawnTimer = Math.max(2.5, 6 - state.score*0.1);
     const ang = Math.random()*Math.PI*2;
     const rad = 70 + Math.random()*40;
@@ -651,8 +788,13 @@ function maybeSpawn(dt) {
     const z = yawObj.position.z + Math.sin(ang)*rad;
     const cx = THREE.MathUtils.clamp(x, -HALF+20, HALF-20);
     const cz = THREE.MathUtils.clamp(z, -HALF+20, HALF-20);
-    const rex = (state.score >= 5 && Math.random() < 0.18) || (state.day >= 2 && Math.random() < 0.3);
-    spawnDino(rex ? 'rex' : 'raptor', cx, cz);
+    // occasionally repopulate harmless herbivores
+    if (herbs < 4 && Math.random() < 0.4) {
+      spawnDino('herb', cx, cz);
+    } else {
+      const rex = (state.score >= 5 && Math.random() < 0.18) || (state.day >= 2 && Math.random() < 0.3);
+      spawnDino(rex ? 'rex' : 'raptor', cx, cz);
+    }
   }
 }
 
@@ -693,12 +835,50 @@ function updatePlayer(dt) {
   [nx, nz] = resolveCollision(nx, nz);
   yawObj.position.x = nx; yawObj.position.z = nz;
 
-  // jump + gravity
-  const groundY = heightAt(nx, nz) + EYE;
+  yawObj.rotation.y = yaw;   // character faces orbit direction
+
+  // jump + gravity (yawObj sits at the character's feet)
+  const groundY = heightAt(nx, nz);
   if (state.onGround && keys['Space']) { state.velY = 9.5; state.onGround = false; }
   state.velY -= GRAV * dt;
   yawObj.position.y += state.velY * dt;
   if (yawObj.position.y <= groundY) { yawObj.position.y = groundY; state.velY = 0; state.onGround = true; }
+
+  // ---- character animation ----
+  const pu = player.userData;
+  if (moving) {
+    playerPhase += dt * (sprint ? 17 : 11);
+    pu.legL.rotation.x = Math.sin(playerPhase) * 0.6;
+    pu.legR.rotation.x = Math.sin(playerPhase + Math.PI) * 0.6;
+    pu.armL.rotation.x = Math.sin(playerPhase + Math.PI) * 0.4;
+  } else {
+    pu.legL.rotation.x *= 0.8; pu.legR.rotation.x *= 0.8; pu.armL.rotation.x *= 0.8;
+  }
+  // spear thrust on the right arm
+  if (state.attackAnim > 0) {
+    state.attackAnim -= dt;
+    const t = 1 - (state.attackAnim / 0.32);
+    pu.armR.rotation.x = -Math.sin(t * Math.PI) * 1.9;
+  } else {
+    pu.armR.rotation.x = THREE.MathUtils.lerp(pu.armR.rotation.x, 0, dt*8);
+  }
+}
+
+// ---------- Third-person camera follow ----------
+const camLook = new THREE.Vector3();
+function updateCamera() {
+  const px = yawObj.position.x, py = yawObj.position.y, pz = yawObj.position.z;
+  const dist = 8.0;
+  const horiz = Math.cos(pitch) * dist;
+  let cx = px + Math.sin(yaw) * horiz;
+  let cz = pz + Math.cos(yaw) * horiz;
+  let cy = py + 3.4 + Math.sin(pitch) * dist;
+  // keep the camera from sinking into the terrain
+  const minY = heightAt(cx, cz) + 1.3;
+  if (cy < minY) cy = minY;
+  camera.position.set(cx, cy, cz);
+  camLook.set(px, py + 2.4, pz);
+  camera.lookAt(camLook);
 }
 
 // ---------- Dino AI ----------
@@ -724,31 +904,40 @@ function updateDinos(dt) {
     if (u.flash > 0) { u.flash -= dt; u.baseMat.emissive = new THREE.Color(0x661111); }
     else u.baseMat.emissive = new THREE.Color(0x000000);
 
-    // state machine
-    if (dist < u.detect) u.state = 'chase';
-    else if (dist > u.detect*1.4) u.state = 'wander';
+    const isHerb = u.kind === 'herb';
 
-    let mvx = 0, mvz = 0;
+    // state machine
+    if (isHerb) {
+      if (dist < u.fleeRange) u.state = 'flee';
+      else if (dist > u.fleeRange*1.5) u.state = 'wander';
+    } else {
+      if (dist < u.detect) u.state = 'chase';
+      else if (dist > u.detect*1.4) u.state = 'wander';
+    }
+
+    let mvx = 0, mvz = 0, fast = false;
     if (u.state === 'chase') {
-      mvx = dx/dist; mvz = dz/dist;
+      mvx = dx/dist; mvz = dz/dist; fast = true;
       nearestThreat = Math.min(nearestThreat, dist);
-      // attack
+      // attack the player
       if (dist < u.radius + 2.2) {
         u.attackCd -= dt;
         if (u.attackCd <= 0) {
           u.attackCd = 1.1;
           damagePlayer(u.damage);
-          u.jaw.rotation.x = 0.5; // chomp
+          if (u.jaw) u.jaw.rotation.x = 0.5; // chomp
         }
       }
+    } else if (u.state === 'flee') {
+      mvx = -dx/dist; mvz = -dz/dist; fast = true; // run away from player
     } else {
-      // wander
+      // graze / wander
       u.wanderT -= dt;
       if (u.wanderT <= 0) { u.dir += (Math.random()-0.5)*2; u.wanderT = 1.5 + Math.random()*2.5; }
       mvx = Math.cos(u.dir); mvz = Math.sin(u.dir);
     }
 
-    const sp = u.speed * (u.state==='chase' ? 1 : 0.4);
+    const sp = u.speed * (fast ? 1 : 0.4);
     let nx2 = d.position.x + mvx * sp * dt;
     let nz2 = d.position.z + mvz * sp * dt;
     nx2 = THREE.MathUtils.clamp(nx2, -HALF+10, HALF-10);
@@ -760,15 +949,14 @@ function updateDinos(dt) {
     // face movement direction
     if (mvx || mvz) d.rotation.y = Math.atan2(mvx, mvz);
 
-    // leg animation
-    const moving = (u.state==='chase') || true;
+    // leg animation (works for 2 or 4 legs)
     u.walkPhase += dt * sp * 1.4;
-    u.legs[0].rotation.x = Math.sin(u.walkPhase) * 0.7;
-    u.legs[1].rotation.x = Math.sin(u.walkPhase + Math.PI) * 0.7;
-    // jaw relax
-    u.jaw.rotation.x = THREE.MathUtils.lerp(u.jaw.rotation.x, 0, dt*6);
-    // little body bob
-    d.children[0].position.y = 1.6 + Math.abs(Math.sin(u.walkPhase))*0.12;
+    const swing = isHerb ? 0.4 : 0.7;
+    for (let li = 0; li < u.legs.length; li++) {
+      u.legs[li].rotation.x = Math.sin(u.walkPhase + (li % 2) * Math.PI) * swing;
+    }
+    // jaw relax (carnivores only)
+    if (u.jaw) u.jaw.rotation.x = THREE.MathUtils.lerp(u.jaw.rotation.x, 0, dt*6);
   }
 
   // threat indicator
@@ -844,6 +1032,7 @@ function animate(now) {
     updateDinos(dt);
     updateMeats(dt);
     updateDayNight(dt);
+    updateCamera(dt);
     maybeSpawn(dt);
 
     // hunger drain -> hp loss when starving
@@ -871,21 +1060,28 @@ function startGame() {
   state.hp = 100; state.hunger = 100; state.stamina = 100;
   state.meat = 0; state.score = 0; state.velY = 0; state.onGround = true;
   state.time = 6/24; state.day = 1; state.alive = true; state.elapsed = 0;
-  state.attackCd = 0; state.hitFlash = 0;
+  state.attackCd = 0; state.hitFlash = 0; state.attackAnim = 0;
   spawnTimer = 1.5;
   // clear dinos & meat
   for (const d of dinos) scene.remove(d);
   dinos.length = 0;
   for (const m of meats) scene.remove(m);
   meats.length = 0;
-  // place player
-  yawObj.position.set(0, heightAt(0,0)+EYE, 0);
-  yawObj.rotation.y = 0; pitchObj.rotation.x = 0;
-  // initial dinos
+  // place player (third person, feet on the ground)
+  yawObj.position.set(0, heightAt(0,0), 0);
+  yaw = 0; pitch = 0.38; playerPhase = 0;
+  yawObj.rotation.y = 0;
+  // initial carnivores
   for (let i = 0; i < 4; i++) {
     const a = Math.random()*Math.PI*2, r = 45+Math.random()*25;
     spawnDino('raptor', Math.cos(a)*r, Math.sin(a)*r);
   }
+  // initial harmless herbivores grazing nearby
+  for (let i = 0; i < 4; i++) {
+    const a = Math.random()*Math.PI*2, r = 30+Math.random()*40;
+    spawnDino('herb', Math.cos(a)*r, Math.sin(a)*r);
+  }
+  updateCamera(0);
   document.getElementById('start').classList.add('hidden');
   document.getElementById('gameOver').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
@@ -893,6 +1089,10 @@ function startGame() {
     document.getElementById('touch').classList.add('on');
     state.running = true; paused = false;
     if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} }
+    enterFs();
+    if (screen.orientation && screen.orientation.lock) {
+      try { const p = screen.orientation.lock('landscape'); if (p && p.catch) p.catch(()=>{}); } catch(e){}
+    }
   } else {
     renderer.domElement.requestPointerLock();
   }
@@ -911,6 +1111,23 @@ function endGame(reason) {
 
 startBtn.addEventListener('click', startGame);
 document.getElementById('retryBtn').addEventListener('click', startGame);
+
+// ---------- Fullscreen & orientation ----------
+const fsBtn = document.getElementById('fsBtn');
+function isFs() { return document.fullscreenElement || document.webkitFullscreenElement; }
+function enterFs() {
+  const d = document.documentElement;
+  const fn = d.requestFullscreen || d.webkitRequestFullscreen;
+  if (fn) { try { const p = fn.call(d); if (p && p.catch) p.catch(()=>{}); } catch(e){} }
+}
+function exitFs() {
+  const fn = document.exitFullscreen || document.webkitExitFullscreen;
+  if (fn) { try { fn.call(document); } catch(e){} }
+}
+fsBtn.addEventListener('click', () => { if (isFs()) exitFs(); else enterFs(); });
+document.addEventListener('fullscreenchange', () => { fsBtn.textContent = isFs() ? '🗗' : '⛶'; });
+// Show the rotate prompt only on touch devices (CSS handles portrait detection)
+if (isTouch) document.getElementById('rotate').classList.add('may');
 
 // ---------- Resize ----------
 window.addEventListener('resize', () => {
