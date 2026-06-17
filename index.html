@@ -129,7 +129,6 @@
 </head>
 <body>
 <div id="hud" class="hidden">
-  <div id="crosshair"></div>
   <div id="topbar">
     <div id="score">DINO ABBATTUTI: 0</div>
     <div id="clock">☀ GIORNO 1 · 06:00</div>
@@ -320,8 +319,8 @@ function makePlayerRex() {
 
 // Per-character tuning
 const KIND = {
-  human: { camDist: 8.5,  camHeight: 3.4, lookY: 2.4, clamp: 1.3, walk: 6.5, run: 13, reach: 5.5, dmgTaken: 1.0,  attackDmg: 2, knock: 1.2 },
-  rex:   { camDist: 18,   camHeight: 7.5, lookY: 4.2, clamp: 2.2, walk: 9.0, run: 17, reach: 9.0, dmgTaken: 0.4, attackDmg: 4, knock: 2.4 },
+  human: { camDist: 8.5,  camHeight: 3.4, lookY: 2.4, clamp: 1.3, walk: 6.5, run: 13, reach: 5.5, dmgTaken: 1.0,  attackDmg: 2, knock: 1.2, bodyR: 0.9, icon: '⚔️' },
+  rex:   { camDist: 18,   camHeight: 7.5, lookY: 4.2, clamp: 2.2, walk: 9.0, run: 17, reach: 9.0, dmgTaken: 0.4, attackDmg: 4, knock: 2.4, bodyR: 2.2, icon: '🦷' },
 };
 let playerKind = 'human';
 let player = makePlayer();
@@ -1159,6 +1158,15 @@ function updatePlayer(dt) {
   let nx = yawObj.position.x + moveDir.x * speed * dt;
   let nz = yawObj.position.z + moveDir.z * speed * dt;
   [nx, nz] = resolveCollision(nx, nz);
+  // don't walk through dinosaurs
+  for (const d of dinos) {
+    if (!d.userData.alive) continue;
+    const ddx = nx - d.position.x, ddz = nz - d.position.z;
+    const dd = Math.hypot(ddx, ddz);
+    const minD = d.userData.radius + cfg.bodyR;
+    if (dd < minD && dd > 0.0001) { nx = d.position.x + (ddx/dd)*minD; nz = d.position.z + (ddz/dd)*minD; }
+  }
+  [nx, nz] = resolveCollision(nx, nz);
   yawObj.position.x = nx; yawObj.position.z = nz;
 
   // Character faces the direction it actually moves (strafing turns the body).
@@ -1299,7 +1307,17 @@ function updateDinos(dt) {
     nz2 = THREE.MathUtils.clamp(nz2, -HALF+10, HALF-10);
     if (Math.abs(nx2) >= HALF-10 || Math.abs(nz2) >= HALF-10) u.dir += Math.PI; // bounce off edge
     d.position.x = nx2; d.position.z = nz2;
-    d.position.y = heightAt(nx2, nz2);
+    // don't overlap the player's body
+    {
+      const pdx = d.position.x - px, pdz = d.position.z - pz;
+      const pd = Math.hypot(pdx, pdz);
+      const minP = u.radius + KIND[playerKind].bodyR;
+      if (pd < minP && pd > 0.0001) {
+        d.position.x = px + (pdx/pd)*minP;
+        d.position.z = pz + (pdz/pd)*minP;
+      }
+    }
+    d.position.y = heightAt(d.position.x, d.position.z);
 
     // face movement direction
     if (mvx || mvz) d.rotation.y = Math.atan2(mvx, mvz);
@@ -1313,6 +1331,24 @@ function updateDinos(dt) {
     // jaw relax (carnivores only)
     if (u.jaw) u.jaw.rotation.x = THREE.MathUtils.lerp(u.jaw.rotation.x, 0, dt*6);
   }
+
+  // keep dinosaurs from overlapping each other (separation)
+  const live = dinos.filter(d => d.userData.alive);
+  for (let a = 0; a < live.length; a++) {
+    for (let b = a + 1; b < live.length; b++) {
+      const A = live[a], B = live[b];
+      let dx2 = B.position.x - A.position.x, dz2 = B.position.z - A.position.z;
+      let dd = Math.hypot(dx2, dz2);
+      const minD = A.userData.radius + B.userData.radius;
+      if (dd < minD && dd > 0.0001) {
+        const push = (minD - dd) * 0.5;
+        dx2 /= dd; dz2 /= dd;
+        A.position.x -= dx2*push; A.position.z -= dz2*push;
+        B.position.x += dx2*push; B.position.z += dz2*push;
+      }
+    }
+  }
+  for (const d of live) d.position.y = heightAt(d.position.x, d.position.z);
 
   // threat indicator
   if (nearestThreat < 14) threatEl.textContent = '⚠ DINOSAURO VICINISSIMO!';
@@ -1435,6 +1471,7 @@ requestAnimationFrame(animate);
 function startGame(kind) {
   setupPlayer(kind === 'rex' ? 'rex' : 'human');
   scoreEl.textContent = (playerKind === 'rex' ? 'PREDE CACCIATE: 0' : 'DINO ABBATTUTI: 0');
+  document.getElementById('btnAttack').textContent = KIND[playerKind].icon;  // adapt attack icon
   // reset
   state.hp = 100; state.hunger = 100; state.stamina = 100;
   state.meat = 0; state.score = 0; state.velY = 0; state.onGround = true;
