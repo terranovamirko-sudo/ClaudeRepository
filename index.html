@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mirko Terranova — Scritta 3D</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 50% 30%, #1b2240 0%, #090b14 70%);
+      font-family: "Arial Black", "Segoe UI", sans-serif;
+      overflow: hidden;
+      perspective: 900px;
+    }
+
+    .scene {
+      transform-style: preserve-3d;
+      animation: spin 9s ease-in-out infinite alternate;
+    }
+
+    .text-3d {
+      font-size: clamp(2.5rem, 9vw, 8rem);
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-align: center;
+      line-height: 1.05;
+      color: #f5d36b;
+      transform-style: preserve-3d;
+      /* effetto estrusione 3D tramite text-shadow a strati */
+      text-shadow:
+        1px 1px 0 #c9a13b,
+        2px 2px 0 #bd9636,
+        3px 3px 0 #b08a31,
+        4px 4px 0 #a37f2c,
+        5px 5px 0 #957327,
+        6px 6px 0 #876722,
+        7px 7px 0 #785b1d,
+        8px 8px 0 #6a5018,
+        9px 9px 14px rgba(0, 0, 0, 0.55),
+        10px 14px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    .line { display: block; }
+    .line.small { font-size: 0.72em; color: #ffe69b; }
+
+    @keyframes spin {
+      0%   { transform: rotateX(14deg) rotateY(-26deg); }
+      100% { transform: rotateX(14deg) rotateY(26deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="scene">
+    <h1 class="text-3d">
+      <span class="line">Mirko</span>
+      <span class="line small">Terranova</span>
+    </h1>
+  </div>
+</body>
+</html>
