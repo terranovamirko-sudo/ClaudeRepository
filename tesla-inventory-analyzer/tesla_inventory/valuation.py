@@ -101,7 +101,11 @@ def options_value(cfg: ValuationConfig, listing: Listing) -> float:
         total += values.get("tow_hitch", 0.0)
     if listing.has_acceleration_boost:
         total += values.get("acceleration_boost", 0.0)
-    if listing.has_premium_paint:
+    # Il prezzo dichiarato dall'annuncio batte la classificazione per codice:
+    # quali colori siano a pagamento cambia da mercato a mercato e nel tempo.
+    if listing.paint_price is not None:
+        total += listing.paint_price * cfg.paint_value_fraction
+    elif listing.has_premium_paint:
         total += values.get("premium_paint", 0.0)
     elif listing.has_standard_paint:
         total += values.get("standard_paint", 0.0)
@@ -185,8 +189,16 @@ def _recompute_advantage(result: Valuation) -> None:
     result.advantage_pct = result.advantage_eur / result.estimated_value * 100.0
 
 
+def _median(values: list[float]) -> float:
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return (ordered[middle - 1] + ordered[middle]) / 2
+
+
 def calibrate(cfg: Config, valuations: list[Valuation]) -> float:
-    """Riallinea le stime all'inventario osservato e ritorna il fattore usato.
+    """Riallinea le stime all'inventario osservato e ritorna il fattore mediano.
 
     Il modello di deprezzamento e per forza approssimato: listini che cambiano,
     allestimenti dedotti, optional non sempre dichiarati. Riscalando le stime in
@@ -194,24 +206,41 @@ def calibrate(cfg: Config, valuations: list[Valuation]) -> float:
     una misura relativa - quanto quest'auto costa meno di quello che ci si
     aspetterebbe viste le altre in vendita nello stesso momento - che e proprio
     la domanda a cui serve rispondere.
+
+    La calibrazione e per ALLESTIMENTO quando i dati bastano, con ricaduta sul
+    fattore globale altrimenti. Un fattore unico per tutta la gamma trasferirebbe
+    l'errore del listino di riferimento di un allestimento su tutti gli altri:
+    se l'ancora della trazione posteriore fosse troppo bassa, tutte le RWD
+    risulterebbero care rispetto alle Long Range e non verrebbero mai segnalate,
+    per un errore di taratura e non per il loro prezzo.
     """
     vcfg = cfg.valuation
     valid = [v for v in valuations if v.valid and v.raw_estimated_value > 0 and v.price > 0]
     if not vcfg.auto_calibrate or len(valid) < vcfg.calibration_min_samples:
         return 1.0
 
-    ratios = sorted(v.price / v.raw_estimated_value for v in valid)
-    middle = len(ratios) // 2
-    factor = (ratios[middle] if len(ratios) % 2
-              else (ratios[middle - 1] + ratios[middle]) / 2)
-    if factor <= 0:
+    global_factor = _median([v.price / v.raw_estimated_value for v in valid])
+    if global_factor <= 0:
         return 1.0
 
+    by_trim: dict[str, list[Valuation]] = {}
     for valuation in valid:
+        by_trim.setdefault(valuation.listing.trim, []).append(valuation)
+
+    factors: dict[str, float] = {}
+    for trim, group in by_trim.items():
+        if len(group) >= vcfg.calibration_min_samples:
+            trim_factor = _median([v.price / v.raw_estimated_value for v in group])
+            factors[trim] = trim_factor if trim_factor > 0 else global_factor
+        else:
+            factors[trim] = global_factor
+
+    for valuation in valid:
+        factor = factors.get(valuation.listing.trim, global_factor)
         valuation.calibration = factor
         valuation.estimated_value = valuation.raw_estimated_value * factor
         _recompute_advantage(valuation)
-    return factor
+    return global_factor
 
 
 # --- punteggio ---------------------------------------------------------------

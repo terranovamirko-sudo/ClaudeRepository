@@ -216,10 +216,16 @@ In alternativa funziona qualsiasi servizio SMTP: basta cambiare `smtp_host`,
 `--color black --color red --color blue`, oppure `colors` nel file di
 configurazione. I valori sono `black`, `white`, `blue`, `red`, `grey`, `silver`.
 
-Il colore viene letto prima dal codice della vernice, poi dal nome commerciale
-della **sola** voce vernice dell'annuncio. Quest'ultimo dettaglio non è
-pedanteria: cercare "nero" fra tutti gli optional farebbe passare per nera
-qualsiasi auto con gli interni neri.
+Il colore viene letto in tre passaggi, nell'ordine in cui le risposte reali lo
+offrono davvero: prima il campo `PAINT` che Tesla restituisce già normalizzato
+(`BLACK`, `RED`, `BLUE`…), poi il codice della vernice preso da
+`OptionCodePricing`, infine il nome commerciale della **sola** voce vernice.
+
+Quest'ultimo dettaglio non è pedanteria: cercare "nero" fra tutti gli optional
+farebbe passare per nera qualsiasi auto con gli interni neri. E il primo passaggio
+nemmeno: sulle risposte europee il blocco `OptionCodeData` spesso non contiene
+affatto la vernice, quindi un parser che cercasse il colore solo lì non
+troverebbe niente.
 
 Un'auto di cui Tesla non dichiara il colore viene esclusa quando il filtro è
 attivo, non inclusa per scrupolo: meglio non segnalarla che segnalartene una del
@@ -279,6 +285,16 @@ rispondere. La calibrazione si disattiva con `auto_calibrate: false`.
 La curva di deprezzamento predefinita (82% dopo un anno, 63% dopo tre, 48% dopo
 cinque) riflette l'andamento tipico della Model 3 in Europa. Tutti i numeri
 stanno in `config.esempio.json`: se li ritieni sbagliati, cambiali.
+
+**La calibrazione lavora per allestimento**, non sull'intera gamma. Il listino di
+riferimento di un allestimento è per forza approssimato — la gamma 2026 è stata
+rinominata e nessuna versione nuova corrisponde esattamente a una usata — e un
+fattore unico trasferirebbe quell'errore su tutti gli altri: se l'ancora della
+trazione posteriore fosse troppo bassa, tutte le RWD risulterebbero care rispetto
+alle Long Range e non verrebbero mai segnalate, per un errore di taratura e non
+per il loro prezzo. Con la calibrazione separata, spostare l'ancora della RWD del
+19% in più o in meno lascia il giudizio praticamente invariato; c'è un test che
+lo verifica.
 
 ## Configurazione
 
@@ -367,7 +383,7 @@ e aggiungi la chiave nuova all'elenco in `first_of(...)` dentro
 python3 -m unittest discover -s tests -v
 ```
 
-91 test coprono lettura dei dati, riconoscimento di colore e generazione,
+99 test coprono lettura dei dati, riconoscimento di colore e generazione,
 valutazione, calibrazione, filtri, soglie delle occasioni, archivio, invio email
 e generazione dei report, usando i dati di esempio in `fixtures/`.
 

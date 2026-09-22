@@ -63,10 +63,18 @@ class FilterConfig:
 # Premium), quindi si prende la versione piu vicina a quella usata in vendita:
 # la "Standard RWD" da 36.990 EUR e decontenutata e non fa da metro per una RWD
 # di qualche anno fa.
+# L'erede si sceglie per batteria e posizionamento, non per nome: la RWD usata
+# monta un pacco LFP da circa 60 kWh, quindi il suo riferimento e la Standard
+# RWD 2026, non la Premium RWD (batteria molto piu grande, erede della Long
+# Range RWD) che ne sovrastimerebbe il valore residuo.
+# La Standard e in parte decontenutata rispetto alla RWD di qualche anno fa,
+# quindi l'ancora resta approssimata: e proprio per questo la calibrazione
+# lavora per allestimento, cosi un'ancora imprecisa non falsa il confronto fra
+# auto dello stesso tipo.
 DEFAULT_NEW_PRICES: dict[str, float] = {
-    "RWD": 42690.0,      # Model 3 Premium RWD
-    "LR": 48790.0,       # Model 3 Premium AWD
-    "PERF": 57490.0,     # Model 3 Performance AWD
+    "RWD": 36990.0,      # Model 3 Standard RWD 2026 (58 kWh LFP)
+    "LR": 48790.0,       # Model 3 Premium AWD 2026
+    "PERF": 57490.0,     # Model 3 Performance AWD 2026
 }
 
 # Valore residuo stimato degli optional sul mercato dell'usato (EUR).
@@ -105,6 +113,11 @@ class ValuationConfig:
         default_factory=lambda: {"RWD": 160000, "LR": 192000, "PERF": 192000}
     )
     full_warranty_value: float = 1500.0   # valore attribuito a garanzia interamente residua
+
+    # Quando l'annuncio dichiara il sovrapprezzo della vernice, quello vale piu
+    # di qualsiasi tabella: i colori a pagamento cambiano per mercato e per anno.
+    # Se ne conserva una quota come valore residuo sull'usato.
+    paint_value_fraction: float = 0.35
 
     # Penalita per danni dichiarati
     damage_penalty: float = 800.0

@@ -70,6 +70,59 @@ class TestColori(unittest.TestCase):
             {"code": "$PZZZ", "group": "PAINT", "name": "Grigio Midnight Silver"}]})
         self.assertEqual(listing.color, "grey")
 
+    def test_forma_reale_della_risposta_tesla(self):
+        """La forma che l'API restituisce davvero sui mercati europei.
+
+        Nelle catture reali OptionCodeData NON espone il gruppo PAINT (ci sono
+        solo AUTOPILOT e SPECS_*), mentre il colore arriva dal campo PAINT di
+        primo livello e il codice vernice da OptionCodePricing. Un parser che
+        cercasse il gruppo PAINT dentro OptionCodeData non troverebbe nulla.
+        """
+        record = {
+            "VIN": "LRW3E7EA1PC999001",
+            "Year": 2023,
+            "TrimName": "Trazione Posteriore",
+            "Odometer": 30000,
+            "OdometerType": "KM",
+            "Price": 29000,
+            "PAINT": ["BLACK"],
+            "OptionCodeList": "$APFS,$DV2W,$IBB1,$PBSB,$W38B",
+            "OptionCodeData": [
+                {"code": "$APFS", "group": "AUTOPILOT", "name": "Autopilot di base"},
+                {"code": "SPECS_RANGE", "group": "SPECS_RANGE", "name": "Autonomia"},
+            ],
+            "OptionCodePricing": [
+                {"code": "$PBSB", "group": "PAINT", "price": 1300},
+                {"code": "$IBB1", "group": "INTERIOR", "price": 0},
+            ],
+        }
+        listing = parse_listing(record)
+        self.assertEqual(listing.color, "black")
+        self.assertEqual(listing.paint_price, 1300.0)
+
+    def test_campo_paint_ha_la_precedenza(self):
+        """Il bucket normalizzato da Tesla vince sui codici, che possono mancare."""
+        listing = parse_listing({"VIN": "X", "PAINT": ["RED"], "OptionCodeList": "$PIGNOTO"})
+        self.assertEqual(listing.color, "red")
+
+    def test_tutti_i_bucket_paint_riconosciuti(self):
+        for bucket, atteso in [("BLACK", "black"), ("WHITE", "white"), ("RED", "red"),
+                               ("BLUE", "blue"), ("GREY", "grey"), ("GRAY", "grey"),
+                               ("SILVER", "silver")]:
+            listing = parse_listing({"VIN": "X", "PAINT": [bucket]})
+            self.assertEqual(listing.color, atteso, msg=bucket)
+
+    def test_bucket_paint_come_stringa(self):
+        listing = parse_listing({"VIN": "X", "PAINT": "BLUE"})
+        self.assertEqual(listing.color, "blue")
+
+    def test_codice_vernice_da_optioncodepricing(self):
+        """Senza campo PAINT, il codice arriva comunque da OptionCodePricing."""
+        listing = parse_listing({"VIN": "X", "OptionCodePricing": [
+            {"code": "$PPSB", "group": "PAINT", "price": 1300}]})
+        self.assertEqual(listing.color, "blue")
+        self.assertEqual(listing.paint_price, 1300.0)
+
     def test_nomi_commerciali_reali(self):
         """Nomi visti sugli annunci Tesla italiani, pre e post restyling."""
         casi = [
@@ -418,3 +471,49 @@ class TestGenerazione(unittest.TestCase):
                                              result.changes, result.meta)
             self.assertIn("restyling", testo)
             self.assertIn("Generazione", pagina)
+
+
+class TestCalibrazionePerAllestimento(unittest.TestCase):
+    """L'ancora di un allestimento e incerta: la calibrazione deve assorbirla."""
+
+    def _valuta(self, prezzo_nuovo_rwd):
+        cfg = Config()
+        cfg.valuation.new_prices = dict(cfg.valuation.new_prices, RWD=prezzo_nuovo_rwd)
+        listings = parse_all(json.loads(CON.read_text(encoding="utf-8"))["results"])
+        valuations, _ = evaluate_all(cfg, listings)
+        return {v.listing.vin: v for v in valuations if v.valid}
+
+    def test_ancora_sbagliata_non_sposta_il_confronto_fra_rwd(self):
+        giusta = self._valuta(36990.0)
+        gonfiata = self._valuta(44000.0)      # ancora sbagliata del 19% in eccesso
+        sgonfiata = self._valuta(30000.0)     # e del 19% in difetto
+
+        for vin in (VIN_BLU, VIN_NERA, VIN_ROSSA):
+            self.assertAlmostEqual(giusta[vin].advantage_pct,
+                                   gonfiata[vin].advantage_pct, delta=1.5,
+                                   msg=f"{vin} con ancora gonfiata")
+            self.assertAlmostEqual(giusta[vin].advantage_pct,
+                                   sgonfiata[vin].advantage_pct, delta=1.5,
+                                   msg=f"{vin} con ancora sgonfiata")
+
+    def test_occasione_resta_occasione_con_ancora_diversa(self):
+        cfg = Config()
+        for prezzo in (30000.0, 36990.0, 44000.0):
+            cfg.valuation.new_prices = dict(cfg.valuation.new_prices, RWD=prezzo)
+            listings = parse_all(json.loads(CON.read_text(encoding="utf-8"))["results"])
+            valuations, _ = evaluate_all(cfg, listings)
+            blu = next(v for v in valuations if v.listing.vin == VIN_BLU)
+            self.assertTrue(evaluate_thresholds(cfg.alert, blu)[0],
+                            msg=f"con ancora {prezzo} l'occasione non viene piu vista")
+
+    def test_allestimenti_calibrati_separatamente(self):
+        cfg = Config()
+        listings = parse_all(json.loads(CON.read_text(encoding="utf-8"))["results"])
+        valuations, _ = evaluate_all(cfg, listings)
+        per_allestimento = {}
+        for v in valuations:
+            if v.valid:
+                per_allestimento.setdefault(v.listing.trim, set()).add(round(v.calibration, 6))
+        for trim, fattori in per_allestimento.items():
+            self.assertEqual(len(fattori), 1, f"{trim} deve avere un solo fattore")
+        self.assertGreaterEqual(len(per_allestimento), 2)

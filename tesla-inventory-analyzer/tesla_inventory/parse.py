@@ -216,6 +216,7 @@ class Listing:
     is_demo: bool = False
     color: str = ""                     # black white blue red grey silver
     color_name: str = ""                # nome commerciale, es. "Nero Pastello"
+    paint_price: float | None = None    # sovrapprezzo della vernice, se dichiarato
     generation: str = ""                # highland | pre-restyling | "" se incerta
     option_codes: list[str] = field(default_factory=list)
     option_names: list[str] = field(default_factory=list)
@@ -256,11 +257,11 @@ class Listing:
 
 # --- costruzione del Listing -------------------------------------------------
 
-def _collect_options(record: dict[str, Any]) -> tuple[list[str], list[str]]:
+def _collect_options(record: dict[str, Any]) -> tuple[list[str], list[str], list[dict[str, Any]]]:
     """Raccoglie codici e nomi degli optional da tutte le strutture note."""
     codes: list[str] = []
     names: list[str] = []
-    entries: list[dict[str, str]] = []
+    entries: list[dict[str, Any]] = []
 
     raw_list = first_of(record, "OptionCodeList", "OptionCodes", default="")
     if isinstance(raw_list, str) and raw_list:
@@ -290,6 +291,26 @@ def _collect_options(record: dict[str, Any]) -> tuple[list[str], list[str]]:
                 "name": " ".join(entry_names),
             })
 
+    # OptionCodePricing riporta {code, group, price}: sulle risposte reali il
+    # gruppo PAINT compare qui in modo affidabile anche quando OptionCodeData
+    # non lo espone affatto, e in piu porta il prezzo effettivo della vernice
+    # in quel mercato.
+    pricing = first_of(record, "OptionCodePricing", default=[])
+    if isinstance(pricing, list):
+        for entry in pricing:
+            if not isinstance(entry, dict):
+                continue
+            code = entry.get("code") or entry.get("optionCode")
+            if not code:
+                continue
+            codes.append(str(code).strip())
+            entries.append({
+                "code": str(code).strip().upper(),
+                "group": str(entry.get("group") or "").upper(),
+                "name": str(entry.get("name") or "").strip(),
+                "price": entry.get("price"),
+            })
+
     specs = first_of(record, "OptionCodeSpecs", default={})
     if isinstance(specs, dict):
         for group in specs.values():
@@ -311,30 +332,62 @@ def _collect_options(record: dict[str, Any]) -> tuple[list[str], list[str]]:
     return codes, names, entries
 
 
-def _detect_color(entries: list[dict[str, str]], codes_upper: set[str]) -> tuple[str, str]:
-    """Colore della carrozzeria. Ritorna (chiave, nome commerciale).
+def _paint_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Le voci che riguardano la vernice, da qualunque struttura provengano."""
+    return [e for e in entries
+            if e.get("group") in PAINT_GROUPS
+            or (not e.get("group") and str(e.get("code", "")).startswith("$P"))]
 
-    Prima il codice option, che e il dato piu stabile; poi il nome della voce
-    vernice. Il nome va letto solo da quella voce: cercare "nero" fra tutti gli
-    optional farebbe passare per nera un'auto bianca con gli interni neri.
+
+def _detect_color(record: dict[str, Any], entries: list[dict[str, Any]],
+                  codes_upper: set[str]) -> tuple[str, str, float | None]:
+    """Colore della carrozzeria: (chiave, nome commerciale, prezzo vernice).
+
+    L'ordine delle fonti segue quello che le risposte reali offrono davvero:
+
+    1. il campo ``PAINT`` di primo livello, che Tesla restituisce gia
+       normalizzato ("BLACK", "RED", "BLUE"...). E esattamente la classificazione
+       che serve a un filtro per colore, senza passare da nessuna tabella;
+    2. i codici vernice, presi da ``OptionCodePricing`` (dove il gruppo PAINT
+       compare in modo affidabile) e da ``OptionCodeList``;
+    3. il nome commerciale della sola voce vernice.
+
+    Il terzo passaggio non puo guardare tutti gli optional insieme: "Interni
+    Neri" farebbe passare per nera un'auto bianca.
     """
+    paint_entries = _paint_entries(entries)
+    name = next((str(e.get("name")) for e in paint_entries if e.get("name")), "")
+    price = next((to_float(e.get("price")) for e in paint_entries
+                  if e.get("price") is not None), None)
+
+    # 1. bucket normalizzato da Tesla
+    bucket = first_of(record, "PAINT", "Paint", default=None)
+    if isinstance(bucket, str):
+        bucket = [bucket]
+    if isinstance(bucket, list):
+        for value in bucket:
+            key = str(value).strip().lower()
+            key = {"gray": "grey"}.get(key, key)
+            if key in COLOR_CODES:
+                return key, name, price
+
+    # 2. codice vernice
     for key, key_codes in COLOR_CODES.items():
         found = codes_upper & key_codes
         if found:
             code = next(iter(found))
-            name = next((e["name"] for e in entries if e["code"] == code and e["name"]), "")
-            return key, name
+            matched = next((str(e.get("name")) for e in entries
+                            if e.get("code") == code and e.get("name")), "")
+            return key, matched or name, price
 
-    paint_entries = [e for e in entries
-                     if e["group"] in PAINT_GROUPS
-                     or (not e["group"] and e["code"].startswith("$P"))]
+    # 3. nome commerciale della voce vernice
     for entry in paint_entries:
-        text = entry["name"].lower()
+        text = str(entry.get("name", "")).lower()
         for key, patterns in COLOR_PATTERNS:
             if _matches(text, patterns):
-                return key, entry["name"]
+                return key, str(entry.get("name")), price
 
-    return "", ""
+    return "", name, price
 
 
 def _detect_trim(record: dict[str, Any], names: list[str], codes: list[str]) -> tuple[str, str, bool]:
@@ -414,7 +467,7 @@ def parse_listing(record: dict[str, Any], *, market: str = "IT", language: str =
     names_blob = " ".join(names).lower()
 
     trim, trim_name, guessed = _detect_trim(record, names, codes)
-    color, color_name = _detect_color(entries, codes_upper)
+    color, color_name, paint_price = _detect_color(record, entries, codes_upper)
     range_km, accel = _detect_specs(record)
 
     odometer = to_int(first_of(record, "Odometer", "Mileage", "OdometerKm"))
@@ -457,6 +510,7 @@ def parse_listing(record: dict[str, Any], *, market: str = "IT", language: str =
         is_demo=bool(first_of(record, "IsDemo", default=False)),
         color=color,
         color_name=color_name,
+        paint_price=paint_price,
         generation=detect_generation(trim, to_int(first_of(record, "Year", "ModelYear")),
                                      range_km),
         option_codes=codes,
