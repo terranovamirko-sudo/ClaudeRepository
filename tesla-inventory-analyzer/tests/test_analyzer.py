@@ -78,7 +78,7 @@ class TestParsing(unittest.TestCase):
 
     def test_specifiche_tecniche(self):
         lr = next(l for l in self.listings if l.vin == "LRW3E7EK3MC100003")
-        self.assertEqual(lr.range_km, 614.0)
+        self.assertEqual(lr.range_km, 602.0)   # Long Range pre-restyling
         self.assertEqual(lr.acceleration_s, 4.4)
 
     def test_oneri_sommati_al_prezzo(self):

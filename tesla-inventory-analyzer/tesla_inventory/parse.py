@@ -33,6 +33,81 @@ STANDARD_PAINT_CODES = {"$PPSW", "$PPSB", "$PMNG", "$PN00", "$PN01", "$PBCW"}
 WHITE_INTERIOR_CODES = {"$IWW1", "$IPW1", "$IWB1"}
 BASE_WHEEL_CODES = {"$W38B", "$W32P", "$W33D"}           # cerchi 18" di serie
 
+# --- colori ------------------------------------------------------------------
+
+# Chiavi colore usate dai filtri. I codici sono il segnale piu stabile, i nomi
+# quello piu leggibile: si prova prima il codice, poi il nome della SOLA voce
+# vernice (non di tutti gli optional insieme, altrimenti "Interni Neri"
+# farebbe passare per nera un'auto bianca).
+# Regola seguita nel compilare questa tabella: un codice sbagliato e peggio di un
+# codice mancante. Se manca, il nome della vernice fa da rete di sicurezza; se e
+# sbagliato, l'auto viene classificata male in silenzio. Per questo i codici
+# della famiglia $PN* (grigio Stealth e argento) NON compaiono qui: le fonti
+# consultate si contraddicono su quale sia l'uno e quale l'altro, e per quei due
+# colori il nome commerciale e un segnale piu sicuro.
+COLOR_CODES: dict[str, set[str]] = {
+    "black": {"$PBSB", "$PMBL", "$PX02"},
+    "white": {"$PPSW", "$PBCW"},
+    "blue": {"$PPSB", "$PB00", "$PB01", "$PB02"},
+    "red": {"$PPMR", "$PR00", "$PR01"},
+    "grey": {"$PMNG", "$PMTG"},
+    "silver": set(),
+}
+
+# L'ordine conta: "Grigio Midnight Silver" e un grigio, "Quicksilver" un argento,
+# quindi le voci piu specifiche vanno provate per prime.
+COLOR_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    # "Grigio Midnight Silver" contiene sia "grigio" sia "silver": vince il
+    # grigio perche e la parola esplicita. "Argento vivo" e "Quicksilver", che
+    # il grigio non lo nominano, restano argento.
+    ("grey", (r"\bgrigio\b", r"\bgr[ea]y\b")),
+    ("silver", (r"quicksilver", r"\bargento\b", r"\bsilver\b")),
+    ("red", (r"\brosso\b", r"\bred\b")),
+    ("blue", (r"\bblu\b", r"\bblue\b")),
+    ("black", (r"\bner[oa]\b", r"\bblack\b")),
+    ("white", (r"\bbianc[oa]\b", r"\bwhite\b")),
+)
+
+COLOR_LABELS = {
+    "black": "nero", "white": "bianco", "blue": "blu",
+    "red": "rosso", "grey": "grigio", "silver": "argento",
+}
+
+PAINT_GROUPS = {"PAINT", "VERNICE", "EXTERIOR", "COLOR", "COLOUR"}
+
+# --- generazione -------------------------------------------------------------
+
+GEN_HIGHLAND = "highland"          # restyling presentato a settembre 2023
+GEN_PRE = "pre-restyling"          # progetto originale 2017-2023
+GEN_LABELS = {GEN_HIGHLAND: "Highland (restyling)", GEN_PRE: "pre-restyling"}
+
+# Nel 2023 convivono le due generazioni: le immatricolazioni italiane fino a
+# ottobre sono pre-restyling, poi arrivano le Highland. A parita di anno e
+# chilometri la Highland vale di piu, quindi confonderle farebbe passare per
+# occasioni delle pre-restyling che costano meno perche valgono meno.
+# L'autonomia WLTP dichiarata e il criterio piu affidabile fra quelli presenti
+# nell'annuncio: la RWD passa da 491/510 km a 513/554 km.
+GENERATION_RANGE_SPLIT = {
+    TRIM_RWD: 512.0,
+    TRIM_LR: 615.0,
+}
+FACELIFT_FIRST_FULL_YEAR = 2024    # dal 2024 in poi e sicuramente Highland
+PRE_FACELIFT_LAST_FULL_YEAR = 2022 # fino al 2022 e sicuramente pre-restyling
+
+
+def detect_generation(trim: str, year: int | None, range_km: float | None) -> str:
+    """Generazione del veicolo, o stringa vuota se non determinabile."""
+    if year is not None:
+        if year >= FACELIFT_FIRST_FULL_YEAR:
+            return GEN_HIGHLAND
+        if year <= PRE_FACELIFT_LAST_FULL_YEAR:
+            return GEN_PRE
+    # Resta il 2023, l'anno in cui le due generazioni si sovrappongono.
+    split = GENERATION_RANGE_SPLIT.get(trim)
+    if split and range_km:
+        return GEN_HIGHLAND if range_km >= split else GEN_PRE
+    return ""
+
 FSD_PATTERNS = (r"guida autonoma", r"full self[- ]driving", r"\bfsd\b")
 EAP_PATTERNS = (r"autopilot avanzato", r"enhanced autopilot")
 TOW_PATTERNS = (r"gancio (di )?traino", r"tow hitch")
@@ -139,6 +214,9 @@ class Listing:
     delivery_date: date | None = None
     has_damage: bool = False
     is_demo: bool = False
+    color: str = ""                     # black white blue red grey silver
+    color_name: str = ""                # nome commerciale, es. "Nero Pastello"
+    generation: str = ""                # highland | pre-restyling | "" se incerta
     option_codes: list[str] = field(default_factory=list)
     option_names: list[str] = field(default_factory=list)
     url: str = ""
@@ -182,6 +260,7 @@ def _collect_options(record: dict[str, Any]) -> tuple[list[str], list[str]]:
     """Raccoglie codici e nomi degli optional da tutte le strutture note."""
     codes: list[str] = []
     names: list[str] = []
+    entries: list[dict[str, str]] = []
 
     raw_list = first_of(record, "OptionCodeList", "OptionCodes", default="")
     if isinstance(raw_list, str) and raw_list:
@@ -197,10 +276,19 @@ def _collect_options(record: dict[str, Any]) -> tuple[list[str], list[str]]:
             code = entry.get("code") or entry.get("optionCode")
             if code:
                 codes.append(str(code).strip())
+            entry_names: list[str] = []
             for key in ("name", "long_name", "description", "value"):
                 value = entry.get(key)
                 if isinstance(value, str) and value.strip():
-                    names.append(value.strip())
+                    entry_names.append(value.strip())
+            names.extend(entry_names)
+            # Il gruppo serve al riconoscimento del colore, che deve guardare
+            # solo la voce della vernice.
+            entries.append({
+                "code": str(code).strip().upper() if code else "",
+                "group": str(entry.get("group") or entry.get("groupName") or "").upper(),
+                "name": " ".join(entry_names),
+            })
 
     specs = first_of(record, "OptionCodeSpecs", default={})
     if isinstance(specs, dict):
@@ -220,7 +308,33 @@ def _collect_options(record: dict[str, Any]) -> tuple[list[str], list[str]]:
     # dedup preservando l'ordine
     codes = list(dict.fromkeys(codes))
     names = list(dict.fromkeys(names))
-    return codes, names
+    return codes, names, entries
+
+
+def _detect_color(entries: list[dict[str, str]], codes_upper: set[str]) -> tuple[str, str]:
+    """Colore della carrozzeria. Ritorna (chiave, nome commerciale).
+
+    Prima il codice option, che e il dato piu stabile; poi il nome della voce
+    vernice. Il nome va letto solo da quella voce: cercare "nero" fra tutti gli
+    optional farebbe passare per nera un'auto bianca con gli interni neri.
+    """
+    for key, key_codes in COLOR_CODES.items():
+        found = codes_upper & key_codes
+        if found:
+            code = next(iter(found))
+            name = next((e["name"] for e in entries if e["code"] == code and e["name"]), "")
+            return key, name
+
+    paint_entries = [e for e in entries
+                     if e["group"] in PAINT_GROUPS
+                     or (not e["group"] and e["code"].startswith("$P"))]
+    for entry in paint_entries:
+        text = entry["name"].lower()
+        for key, patterns in COLOR_PATTERNS:
+            if _matches(text, patterns):
+                return key, entry["name"]
+
+    return "", ""
 
 
 def _detect_trim(record: dict[str, Any], names: list[str], codes: list[str]) -> tuple[str, str, bool]:
@@ -295,11 +409,12 @@ def parse_listing(record: dict[str, Any], *, market: str = "IT", language: str =
     if not vin:
         return None
 
-    codes, names = _collect_options(record)
+    codes, names, entries = _collect_options(record)
     codes_upper = {c.upper() for c in codes}
     names_blob = " ".join(names).lower()
 
     trim, trim_name, guessed = _detect_trim(record, names, codes)
+    color, color_name = _detect_color(entries, codes_upper)
     range_km, accel = _detect_specs(record)
 
     odometer = to_int(first_of(record, "Odometer", "Mileage", "OdometerKm"))
@@ -340,6 +455,10 @@ def parse_listing(record: dict[str, Any], *, market: str = "IT", language: str =
                                            "FirstRegistrationDate", "DeliveryDateDisplay")),
         has_damage=damage,
         is_demo=bool(first_of(record, "IsDemo", default=False)),
+        color=color,
+        color_name=color_name,
+        generation=detect_generation(trim, to_int(first_of(record, "Year", "ModelYear")),
+                                     range_km),
         option_codes=codes,
         option_names=names,
         url=_listing_url(record, vin, market, language, zip_code),

@@ -35,7 +35,12 @@ class SearchConfig:
 
 @dataclass
 class FilterConfig:
-    """Filtri applicati dopo il download, prima della classifica."""
+    """Quali auto interessano davvero.
+
+    I filtri si applicano DOPO la valutazione: il valore di riferimento nasce
+    da tutto l'inventario, altrimenti restringendo a poche auto la calibrazione
+    userebbe quelle stesse auto come metro di se stesse.
+    """
 
     max_price: float | None = None
     min_price: float | None = None
@@ -43,6 +48,7 @@ class FilterConfig:
     min_year: int | None = None
     max_year: int | None = None
     trims: list[str] = field(default_factory=list)   # RWD | LR | PERF
+    colors: list[str] = field(default_factory=list)  # black white red blue grey silver
     exclude_damaged: bool = False
 
 
@@ -53,10 +59,14 @@ class FilterConfig:
 # immatricolazione: Tesla ha tagliato i listini nel 2023, quindi partire dal
 # prezzo storico sovrastima il deprezzamento. Vanno aggiornati se Tesla cambia
 # i prezzi: sono tre numeri leggibili direttamente da tesla.com.
+# Riferimento: listino Italia 2026. La gamma e stata rinominata (Standard /
+# Premium), quindi si prende la versione piu vicina a quella usata in vendita:
+# la "Standard RWD" da 36.990 EUR e decontenutata e non fa da metro per una RWD
+# di qualche anno fa.
 DEFAULT_NEW_PRICES: dict[str, float] = {
-    "RWD": 42490.0,
-    "LR": 50490.0,
-    "PERF": 57490.0,
+    "RWD": 42690.0,      # Model 3 Premium RWD
+    "LR": 48790.0,       # Model 3 Premium AWD
+    "PERF": 57490.0,     # Model 3 Performance AWD
 }
 
 # Valore residuo stimato degli optional sul mercato dell'usato (EUR).
@@ -99,6 +109,12 @@ class ValuationConfig:
     # Penalita per danni dichiarati
     damage_penalty: float = 800.0
 
+    # Le auto anteriori al restyling "Highland" (settembre 2023) valgono meno di
+    # quanto la sola eta suggerisca: interni, insonorizzazione e autonomia sono
+    # diversi. Conta soprattutto nel 2023, l'anno in cui le due generazioni
+    # convivono e un annuncio "2023" puo essere l'una o l'altra.
+    pre_facelift_discount: float = 2000.0
+
     new_prices: dict[str, float] = field(
         default_factory=lambda: dict(DEFAULT_NEW_PRICES)
     )
@@ -140,6 +156,44 @@ class OutputConfig:
 
 
 @dataclass
+class AlertConfig:
+    """Quando un'auto merita di essere segnalata.
+
+    Serve a distinguere "la migliore fra quelle in vendita" da "una che vale
+    davvero la pena comprare": senza una soglia, un controllo ogni 3 ore
+    segnalerebbe sempre qualcosa, e smetteresti di leggerlo.
+    """
+
+    enabled: bool = False
+    min_score: float = 60.0          # punteggio complessivo minimo su 100
+    min_advantage_pct: float = 8.0   # quanto sotto il valore stimato, in percentuale
+    min_advantage_eur: float = 0.0   # e in euro, se vuoi anche un minimo assoluto
+    max_price: float | None = None   # tetto di spesa oltre il quale non e un'occasione
+
+    # Una stessa auto non va segnalata a ogni giro: torna a essere una notizia
+    # solo se il prezzo scende ancora di almeno questa cifra.
+    repeat_after_drop_eur: float = 500.0
+
+
+@dataclass
+class EmailConfig:
+    """Invio email via SMTP. Disattivato finche non viene configurato."""
+
+    enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = 587
+    security: str = "starttls"       # starttls | ssl | none
+    username: str = ""
+    password: str = ""               # meglio lasciarlo vuoto e usare password_env
+    password_env: str = "TESLA_SMTP_PASSWORD"
+    sender: str = ""                 # indirizzo mittente (di norma = username)
+    sender_name: str = "Analizzatore Tesla"
+    recipients: list[str] = field(default_factory=list)
+    subject_prefix: str = "[Tesla]"
+    timeout: int = 30
+
+
+@dataclass
 class NotifyConfig:
     """Notifiche opzionali: disattivate se mancano i parametri."""
 
@@ -170,6 +224,8 @@ class Config:
     valuation: ValuationConfig = field(default_factory=ValuationConfig)
     score: ScoreConfig = field(default_factory=ScoreConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
+    alert: AlertConfig = field(default_factory=AlertConfig)
+    email: EmailConfig = field(default_factory=EmailConfig)
     notify: NotifyConfig = field(default_factory=NotifyConfig)
     fetch: FetchConfig = field(default_factory=FetchConfig)
     interval_hours: float = 3.0     # cadenza della modalita --loop
@@ -186,7 +242,7 @@ class Config:
         sections = {
             "search": cfg.search, "filters": cfg.filters, "valuation": cfg.valuation,
             "score": cfg.score, "output": cfg.output, "notify": cfg.notify,
-            "fetch": cfg.fetch,
+            "fetch": cfg.fetch, "alert": cfg.alert, "email": cfg.email,
         }
         for name, section in sections.items():
             for key, value in (data.get(name) or {}).items():

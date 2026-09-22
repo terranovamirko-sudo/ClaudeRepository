@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .config import Config, ScoreConfig, ValuationConfig
-from .parse import Listing, TRIM_LABELS
+from .parse import GEN_LABELS, GEN_PRE, Listing, TRIM_LABELS
 
 
 def _clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
@@ -34,6 +34,7 @@ class Valuation:
     options_value: float = 0.0
     warranty_value: float = 0.0
     damage_penalty: float = 0.0
+    generation_adjustment: float = 0.0
     estimated_value: float = 0.0
 
     calibration: float = 1.0
@@ -163,10 +164,16 @@ def evaluate(cfg: Config, listing: Listing) -> Valuation:
     if listing.has_damage:
         result.notes.append("danni dichiarati dal venditore")
 
+    if listing.generation == GEN_PRE:
+        result.generation_adjustment = -vcfg.pre_facelift_discount
+    elif not listing.generation:
+        result.notes.append("generazione non determinabile: potrebbe essere "
+                            "pre-restyling o Highland")
+
     result.raw_estimated_value = max(
         1.0,
         result.depreciated_value + result.km_adjustment + result.options_value
-        + result.warranty_value - result.damage_penalty,
+        + result.warranty_value + result.generation_adjustment - result.damage_penalty,
     )
     result.estimated_value = result.raw_estimated_value
     _recompute_advantage(result)
@@ -284,3 +291,8 @@ def rank(valuations: list[Valuation], mode: str = "score") -> list[Valuation]:
 
 def describe_trim(listing: Listing) -> str:
     return listing.trim_name or TRIM_LABELS.get(listing.trim, listing.trim)
+
+
+def describe_generation(listing: Listing) -> str:
+    """Etichetta leggibile della generazione, vuota se non determinabile."""
+    return GEN_LABELS.get(listing.generation, "")

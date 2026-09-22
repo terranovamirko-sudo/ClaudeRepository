@@ -113,6 +113,131 @@ Utilità di pianificazione → attività di base → ripeti ogni 3 ore → azion
 `python -m tesla_inventory --quiet`, con "Inizio" impostato sulla cartella del
 progetto.
 
+## Sorveglianza: fatti avvisare solo quando conviene davvero
+
+La modalità normale mostra una classifica a ogni giro. Quella di sorveglianza fa
+una cosa diversa: tace finché non trova un'auto che vale la pena comprare, e
+quando la trova la archivia e ti manda una email.
+
+```bash
+python3 -m tesla_inventory --config config.json --loop
+```
+
+Esempio pronto per «Model 3 del 2023, trazione posteriore, nera rossa o blu»:
+
+```bash
+cp config.sorveglianza.json config.json
+# completa la sezione email, poi:
+export TESLA_SMTP_PASSWORD='la-password-per-le-app'
+python3 -m tesla_inventory --config config.json --test-email   # verifica l'invio
+python3 -m tesla_inventory --config config.json --loop         # controllo ogni 3 ore
+```
+
+Oppure tutto da riga di comando, senza file:
+
+```bash
+python3 -m tesla_inventory --alert \
+  --min-year 2023 --max-year 2023 --trim RWD \
+  --color black --color red --color blue --no-damaged
+```
+
+### Cosa conta come occasione
+
+Un'auto viene segnalata solo se supera **tutte** le soglie che hai impostato:
+
+| Soglia | Predefinito | Significato |
+|---|--:|---|
+| `min_score` | 60 | punteggio complessivo su 100 |
+| `min_advantage_pct` | 8% | quanto costa meno del valore stimato |
+| `min_advantage_eur` | 0 | lo stesso, in euro |
+| `max_price` | nessuno | tetto di spesa |
+
+Quando nessuna auto le supera, il programma non tace e basta: dice quale ci è
+andata più vicino e cosa le è mancato.
+
+```
+  NESSUNA OCCASIONE in questo momento
+  3 auto corrispondono ai tuoi criteri, nessuna supera le soglie.
+
+  La più vicina: 2023 Model 3 Trazione Posteriore a 28.600 € — punteggio 56,2
+  Le manca: punteggio 56,2 (soglia 60); convenienza 2,5% (soglia 8%)
+```
+
+Se ricevi troppe segnalazioni alza `min_advantage_pct`; se non ne ricevi mai,
+abbassala.
+
+### Perché non ricevi otto email al giorno per la stessa auto
+
+Ogni occasione finisce in `data/occasioni.json` e resta lì anche dopo che l'auto
+è stata venduta. Una stessa auto torna a essere una notizia **solo** se il prezzo
+scende di almeno `repeat_after_drop_eur` (500 € di default) rispetto all'ultimo
+avviso.
+
+```bash
+python3 -m tesla_inventory --config config.json --archivio   # cosa ho trovato finora
+```
+
+Se l'invio dell'email fallisce, l'occasione **non** viene segnata come
+comunicata: torna al giro successivo. Un errore di rete non deve farti perdere
+l'auto.
+
+### Impostare l'email
+
+Il tuo indirizzo Outlook va benissimo per **ricevere**. È come mittente che dà
+problemi: dal 16 settembre 2024 Microsoft ha disattivato per default
+l'autenticazione SMTP con password sugli account Outlook, Hotmail e Live
+personali, comprese le password per app, e l'invio viene di norma rifiutato con
+un errore 535. Il comportamento non è uniforme — su qualche casella più vecchia
+può ancora passare — ma non è una base su cui costruire qualcosa che deve
+funzionare per mesi. Il programma ti avvisa prima di provarci, invece di fallire
+in silenzio.
+
+La strada più semplice è un account Gmail dedicato:
+
+1. crea un indirizzo Gmail usato solo da questo programma;
+2. attivaci la verifica in due passaggi (è obbligatoria per il passo dopo);
+3. genera una password per le app da `myaccount.google.com/apppasswords`;
+4. mettila in una variabile d'ambiente, non nel file di configurazione:
+
+```bash
+export TESLA_SMTP_PASSWORD='xxxx xxxx xxxx xxxx'
+```
+
+Il campo `sender` deve essere lo stesso indirizzo Gmail autenticato: se metti lì
+il tuo indirizzo Outlook i controlli antispam spostano il messaggio nella posta
+indesiderata. Dopo il primo invio riuscito, aggiungi l'indirizzo Gmail ai
+mittenti attendibili di Outlook.
+
+In alternativa funziona qualsiasi servizio SMTP: basta cambiare `smtp_host`,
+`smtp_port` e le credenziali.
+
+### Filtro per colore
+
+`--color black --color red --color blue`, oppure `colors` nel file di
+configurazione. I valori sono `black`, `white`, `blue`, `red`, `grey`, `silver`.
+
+Il colore viene letto prima dal codice della vernice, poi dal nome commerciale
+della **sola** voce vernice dell'annuncio. Quest'ultimo dettaglio non è
+pedanteria: cercare "nero" fra tutti gli optional farebbe passare per nera
+qualsiasi auto con gli interni neri.
+
+Un'auto di cui Tesla non dichiara il colore viene esclusa quando il filtro è
+attivo, non inclusa per scrupolo: meglio non segnalarla che segnalartene una del
+colore sbagliato.
+
+### Pre-restyling o Highland
+
+Una Model 3 immatricolata nel 2023 può essere del progetto originale oppure del
+restyling "Highland", arrivato in Italia verso ottobre 2023. A parità di anno e
+chilometri la Highland vale sensibilmente di più, quindi una "2023" che costa
+poco spesso non è un affare: è semplicemente la generazione precedente.
+
+Il programma le distingue dall'autonomia WLTP dichiarata (491/510 km la RWD
+pre-restyling, 513/554 km la Highland), applica la differenza di valore e scrive
+la generazione nel report e nell'email. Quando l'annuncio non riporta
+l'autonomia, il 2023 resta ambiguo e viene segnalato come tale invece di essere
+indovinato.
+
 ## Come viene scelta la "migliore"
 
 Il punteggio da 0 a 100 combina quattro cose:
@@ -242,8 +367,9 @@ e aggiungi la chiave nuova all'elenco in `first_of(...)` dentro
 python3 -m unittest discover -s tests -v
 ```
 
-53 test coprono lettura dei dati, valutazione, calibrazione, filtri, storico e
-generazione dei report, usando i dati di esempio in `fixtures/`.
+91 test coprono lettura dei dati, riconoscimento di colore e generazione,
+valutazione, calibrazione, filtri, soglie delle occasioni, archivio, invio email
+e generazione dei report, usando i dati di esempio in `fixtures/`.
 
 ## Struttura
 
@@ -254,8 +380,11 @@ tesla_inventory/
 ├── parse.py         normalizzazione difensiva dei record Tesla
 ├── valuation.py     valore stimato, calibrazione e punteggio
 ├── history.py       confronto fra un giro e l'altro
+├── alerts.py        soglie delle occasioni e archivio
 ├── report.py        console, Markdown, testo per le notifiche
 ├── html_report.py   report HTML autonomo
+├── alert_report.py  oggetto, testo e HTML dell'email di avviso
+├── mailer.py        invio SMTP
 ├── notify.py        Telegram e webhook
 ├── app.py           orchestrazione di una singola analisi
 └── __main__.py      riga di comando e ciclo ogni 3 ore

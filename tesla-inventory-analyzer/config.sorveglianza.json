@@ -1,0 +1,53 @@
+{
+  "_commento": "Sorveglianza Model 3 2023 trazione posteriore, nera / rossa / blu. Copia questo file in config.json, completa la sezione email e avvia con: python3 -m tesla_inventory --config config.json --loop",
+
+  "search": {
+    "model": "m3",
+    "condition": "used",
+    "zip_code": "90126",
+    "market": "IT",
+    "language": "it",
+    "payment_type": "cash"
+  },
+
+  "filters": {
+    "_commento": "I filtri si applicano DOPO la valutazione: il metro di paragone resta tutto l'inventario Model 3, non le sole auto che cerchi.",
+    "min_year": 2023,
+    "max_year": 2023,
+    "trims": ["RWD"],
+    "colors": ["black", "red", "blue"],
+    "exclude_damaged": true
+  },
+
+  "alert": {
+    "_commento": "Soglie oltre le quali vale la pena essere avvisati. Alzale se ricevi troppe segnalazioni, abbassale se non ne ricevi mai.",
+    "enabled": true,
+    "min_score": 62.0,
+    "min_advantage_pct": 8.0,
+    "min_advantage_eur": 1500.0,
+    "max_price": null,
+    "repeat_after_drop_eur": 500.0
+  },
+
+  "email": {
+    "_commento": "IMPORTANTE: dal 16 settembre 2024 Microsoft disattiva per default l'autenticazione SMTP con password sugli account Outlook/Hotmail personali, quindi conviene NON inviare da un indirizzo @outlook.it (riceverlo li funziona benissimo). Usa un account Gmail dedicato con verifica in due passaggi e una password per le app: myaccount.google.com/apppasswords.",
+    "enabled": true,
+    "smtp_host": "smtp.gmail.com",
+    "smtp_port": 587,
+    "security": "starttls",
+    "username": "INDIRIZZO-GMAIL-DEDICATO@gmail.com",
+    "password": "",
+    "password_env": "TESLA_SMTP_PASSWORD",
+    "sender": "INDIRIZZO-GMAIL-DEDICATO@gmail.com",
+    "sender_name": "Analizzatore Tesla",
+    "recipients": ["mirkoterranova@outlook.it"],
+    "subject_prefix": "[Tesla]"
+  },
+
+  "output": {
+    "data_dir": "data",
+    "top_n": 5
+  },
+
+  "interval_hours": 3.0
+}

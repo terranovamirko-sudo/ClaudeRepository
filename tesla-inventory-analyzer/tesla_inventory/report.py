@@ -9,7 +9,7 @@ from .config import Config
 from .fetch import page_url
 from .history import Changes
 from .parse import Listing
-from .valuation import Valuation, describe_trim
+from .valuation import Valuation, describe_generation, describe_trim
 
 # --- formattazione numerica (convenzioni italiane) ---------------------------
 
@@ -164,6 +164,9 @@ def format_console(cfg: Config, ranked: list[Valuation], skipped: list[Valuation
                      f"convenienza {advantage}")
         lines.append(f"     Percorrenza {km(listing.odometer_km)}"
                      + (f" · autonomia {fmt_int(listing.range_km)} km WLTP" if listing.range_km else ""))
+        generazione = describe_generation(listing)
+        if generazione:
+            lines.append(f"     Generazione {generazione}")
         details = " · ".join(f"{k} {num(v, 0)}" for k, v in valuation.score_parts.items())
         lines.append(s.dim(f"     Dettaglio punteggio: {details}"))
         tags = equipment_tags(listing)
@@ -271,6 +274,9 @@ def format_markdown(cfg: Config, ranked: list[Valuation], skipped: list[Valuatio
         out.append(f"- **Valore stimato**: {eur(valuation.estimated_value)} → "
                    f"convenienza {eur(valuation.advantage_eur)} ({pct(valuation.advantage_pct)})")
         out.append(f"- **Percorrenza**: {km(listing.odometer_km)}")
+        generazione = describe_generation(listing)
+        if generazione:
+            out.append(f"- **Generazione**: {generazione}")
         if listing.range_km:
             out.append(f"- **Autonomia WLTP**: {fmt_int(listing.range_km)} km")
         tags = equipment_tags(listing)

@@ -19,7 +19,8 @@ import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from . import report
+from . import alert_report, mailer, report
+from .alerts import OpportunityArchive, describe_thresholds
 from .app import RunResult, run_once
 from .config import Config
 from .fetch import BotChallengeError, FetchError
@@ -62,6 +63,9 @@ def build_parser() -> argparse.ArgumentParser:
     filtri.add_argument("--max-year", type=int, help="anno massimo")
     filtri.add_argument("--trim", action="append", choices=["RWD", "LR", "PERF"],
                         help="allestimento da includere (ripetibile)")
+    filtri.add_argument("--color", action="append", dest="colors",
+                        choices=["black", "white", "blue", "red", "grey", "silver"],
+                        help="colore da includere (ripetibile)")
     filtri.add_argument("--no-damaged", action="store_true",
                         help="escludi le auto con danni dichiarati")
 
@@ -70,6 +74,20 @@ def build_parser() -> argparse.ArgumentParser:
                          help="criterio di ordinamento (default: score)")
     analisi.add_argument("--top", type=int, help="quante auto nel riepilogo dettagliato")
     analisi.add_argument("--rows", type=int, help="quante righe nella classifica")
+
+    occasioni = parser.add_argument_group("occasioni e avvisi")
+    occasioni.add_argument("--alert", action="store_true",
+                           help="modalita sorveglianza: segnala solo le vere occasioni")
+    occasioni.add_argument("--min-score", type=float,
+                           help="punteggio minimo perche sia un'occasione")
+    occasioni.add_argument("--min-advantage", type=float, metavar="PCT",
+                           help="convenienza minima in percentuale")
+    occasioni.add_argument("--budget", type=float,
+                           help="tetto di spesa oltre il quale non e un'occasione")
+    occasioni.add_argument("--test-email", action="store_true",
+                           help="invia una email di prova ed esci")
+    occasioni.add_argument("--archivio", action="store_true",
+                           help="mostra le occasioni gia archiviate ed esci")
 
     rete = parser.add_argument_group("rete")
     rete.add_argument("--backend", choices=["http", "browser", "file"],
@@ -116,8 +134,19 @@ def apply_cli(cfg: Config, args: argparse.Namespace) -> Config:
             setattr(cfg.filters, attr, value)
     if args.trim:
         cfg.filters.trims = args.trim
+    if args.colors:
+        cfg.filters.colors = args.colors
     if args.no_damaged:
         cfg.filters.exclude_damaged = True
+
+    if args.alert:
+        cfg.alert.enabled = True
+    if args.min_score is not None:
+        cfg.alert.min_score = args.min_score
+    if args.min_advantage is not None:
+        cfg.alert.min_advantage_pct = args.min_advantage
+    if args.budget is not None:
+        cfg.alert.max_price = args.budget
 
     if args.backend:
         cfg.fetch.backend = args.backend
@@ -169,6 +198,13 @@ def result_to_json(cfg: Config, result: RunResult) -> str:
         "totale_trovate": result.total_found,
         "escluse_dai_filtri": result.filtered_out,
         "classifica": [entry(v) for v in result.ranked],
+        "occasioni": {
+            "sorveglianza_attiva": cfg.alert.enabled,
+            "criteri": describe_thresholds(cfg.alert),
+            "trovate": [entry(v) for v in result.qualifying],
+            "da_segnalare": [entry(o.valuation) for o in result.opportunities],
+            "email_inviata": result.email_sent,
+        },
         "novita": {
             "primo_giro": result.changes.first_run,
             "nuovi": [entry(v) for v in result.changes.new_listings],
@@ -187,7 +223,14 @@ def result_to_json(cfg: Config, result: RunResult) -> str:
 def _print_result(cfg: Config, args: argparse.Namespace, result: RunResult) -> None:
     if args.as_json:
         print(result_to_json(cfg, result))
-    elif not args.quiet:
+        return
+    if cfg.alert.enabled:
+        print()
+        print(alert_report.format_console_verdict(cfg, result, color=cfg.output.color))
+        print()
+        if args.quiet:
+            return
+    if not args.quiet:
         print(report.format_console(cfg, result.ranked, result.skipped,
                                     result.changes, result.meta))
         for path in result.written_files:
@@ -203,6 +246,54 @@ def _cron_line(cfg: Config) -> str:
     hours = max(1, int(round(cfg.interval_hours)))
     return (f"0 */{hours} * * * cd {script} && "
             f"{sys.executable} -m tesla_inventory --quiet >> {script}/data/cron.log 2>&1")
+
+
+def _test_email(cfg: Config) -> int:
+    """Verifica la configurazione email senza aspettare un'occasione."""
+    problems = mailer.check_config(cfg.email)
+    if problems:
+        print("Configurazione email incompleta:", file=sys.stderr)
+        for problem in problems:
+            print(f"  - {problem}", file=sys.stderr)
+        return EXIT_ERROR
+    for note in mailer.warnings(cfg.email):
+        print(f"Attenzione: {note}\n", file=sys.stderr)
+    try:
+        mailer.send_test(cfg.email)
+    except mailer.EmailError as exc:
+        print(f"Invio non riuscito: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+    print(f"Email di prova inviata a {', '.join(cfg.email.recipients)}.")
+    print("Se non arriva entro qualche minuto, controlla la posta indesiderata.")
+    return EXIT_OK
+
+
+def _show_archive(cfg: Config) -> int:
+    """Stampa le occasioni archiviate, dalla piu recente."""
+    archive = OpportunityArchive(cfg.output.data_dir)
+    entries = archive.load().get("occasioni", {})
+    if not entries:
+        print("Nessuna occasione archiviata finora.")
+        print(f"Criteri attuali: {describe_thresholds(cfg.alert)}")
+        return EXIT_OK
+
+    ordered = sorted(entries.items(), key=lambda kv: kv[1].get("ultima_volta", ""),
+                     reverse=True)
+    print(report.plural(len(ordered), "occasione archiviata",
+                        "occasioni archiviate") + "\n")
+    for vin, data in ordered:
+        segnalata = data.get("notificata_il", "mai")
+        print(f"  {data.get('etichetta', vin)} \u2014 {data.get('colore', 'n.d.')}")
+        print(f"     {report.eur(data.get('prezzo_attuale'))} \u00b7 "
+              f"{report.km(data.get('km'))} \u00b7 "
+              f"punteggio {report.num(data.get('punteggio'))} \u00b7 "
+              f"convenienza {report.pct(data.get('convenienza_pct'))}")
+        print(f"     vista la prima volta il {data.get('prima_volta', 'n.d.')[:10]} \u00b7 "
+              f"segnalata: {segnalata[:10] if segnalata != 'mai' else 'mai'}")
+        print(f"     VIN {vin}")
+        print(f"     {data.get('url', '')}")
+        print()
+    return EXIT_OK
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -221,6 +312,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.cron_line:
         print(_cron_line(cfg))
         return EXIT_OK
+    if args.test_email:
+        return _test_email(cfg)
+    if args.archivio:
+        return _show_archive(cfg)
 
     if not args.loop:
         return _run_and_report(cfg, args)

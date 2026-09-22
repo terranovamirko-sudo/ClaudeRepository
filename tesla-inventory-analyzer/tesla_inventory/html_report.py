@@ -16,7 +16,7 @@ from .config import Config
 from .fetch import page_url
 from .history import Changes
 from .report import (equipment_tags, eur, fmt_int, km, num, pct, search_description)
-from .valuation import Valuation, describe_trim
+from .valuation import Valuation, describe_generation, describe_trim
 
 CSS = """
 :root {
@@ -175,6 +175,9 @@ def _hero(valuation: Valuation) -> str:
         facts.append(_fact("Autonomia WLTP", f"{fmt_int(listing.range_km)} km"))
     if listing.year:
         facts.append(_fact("Anno", str(listing.year)))
+    generazione = describe_generation(listing)
+    if generazione:
+        facts.append(_fact("Generazione", generazione))
 
     tags = "".join(f'<span class="tag">{_esc(t)}</span>' for t in equipment_tags(listing))
     tags_html = f'<div class="tags">{tags}</div>' if tags else ""
