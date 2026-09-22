@@ -1,0 +1,67 @@
+{
+  "_commento": "Copia questo file in config.json e modifica solo le voci che ti servono. Tutto il resto resta ai valori predefiniti.",
+
+  "search": {
+    "model": "m3",
+    "condition": "used",
+    "zip_code": "90126",
+    "market": "IT",
+    "language": "it",
+    "payment_type": "cash"
+  },
+
+  "filters": {
+    "max_price": null,
+    "max_odometer": null,
+    "min_year": null,
+    "trims": [],
+    "exclude_damaged": false
+  },
+
+  "valuation": {
+    "_commento": "Listino ATTUALE del nuovo in euro: aggiornalo se Tesla cambia i prezzi.",
+    "new_prices": {
+      "RWD": 42490.0,
+      "LR": 50490.0,
+      "PERF": 57490.0
+    },
+    "first_year_retention": 0.82,
+    "annual_retention": 0.875,
+    "expected_km_per_year": 15000,
+    "cost_per_excess_km": 0.055,
+    "auto_calibrate": true,
+    "option_values": {
+      "fsd": 2500.0,
+      "eap": 1200.0,
+      "tow_hitch": 700.0,
+      "acceleration_boost": 500.0,
+      "premium_paint": 400.0,
+      "standard_paint": 150.0,
+      "white_interior": 400.0,
+      "upgraded_wheels": 300.0
+    }
+  },
+
+  "score": {
+    "weight_deal": 0.45,
+    "weight_mileage": 0.20,
+    "weight_warranty": 0.20,
+    "weight_equipment": 0.15
+  },
+
+  "output": {
+    "data_dir": "data",
+    "top_n": 5,
+    "table_rows": 15
+  },
+
+  "notify": {
+    "_commento": "Lascia vuoto per non ricevere notifiche. Il token si ottiene da @BotFather su Telegram.",
+    "telegram_bot_token": "",
+    "telegram_chat_id": "",
+    "webhook_url": "",
+    "only_on_change": true
+  },
+
+  "interval_hours": 3.0
+}

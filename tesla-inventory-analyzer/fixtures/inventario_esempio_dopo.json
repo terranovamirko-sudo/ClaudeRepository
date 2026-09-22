@@ -1,0 +1,731 @@
+{
+  "results": [
+    {
+      "VIN": "LRW3E7EA1KC100001",
+      "Model": "m3",
+      "Year": 2019,
+      "TrimName": "Trazione Posteriore",
+      "Odometer": 118000,
+      "OdometerType": "KM",
+      "CurrencyCode": "EUR",
+      "City": "Palermo",
+      "StateProvince": "PA",
+      "CountryCode": "IT",
+      "TitleStatus": "USED",
+      "IsDemo": false,
+      "HasDamagePhotos": false,
+      "OriginalDeliveryDate": "2019-05-12T00:00:00",
+      "OptionCodeList": "$PBSB,$IBB1,$W38B",
+      "OptionCodeData": [
+        {
+          "code": "$PBSB",
+          "group": "PAINT",
+          "name": "Nero Pastello"
+        },
+        {
+          "code": "$IBB1",
+          "group": "INTERIOR",
+          "name": "Interni Neri"
+        },
+        {
+          "code": "$W38B",
+          "group": "WHEELS",
+          "name": "Cerchi Aero da 18\""
+        }
+      ],
+      "OptionCodeSpecs": {
+        "C_SPECS": {
+          "code": "C_SPECS",
+          "name": "Specifiche",
+          "options": [
+            {
+              "code": "SPECS_RANGE",
+              "name": "Autonomia (WLTP)",
+              "value": "491",
+              "unit_short": "km"
+            },
+            {
+              "code": "SPECS_ACCELERATION",
+              "name": "Accelerazione 0-100 km/h",
+              "value": "6.1",
+              "unit_short": "s"
+            },
+            {
+              "code": "SPECS_TOPSPEED",
+              "name": "Velocita massima",
+              "value": "225",
+              "unit_short": "km/h"
+            }
+          ]
+        }
+      },
+      "Price": 18900,
+      "InventoryPrice": 18900,
+      "PurchasePrice": 18900,
+      "TotalPrice": 18900
+    },
+    {
+      "VIN": "LRW3E7EB2LC100002",
+      "Model": "m3",
+      "Year": 2020,
+      "TrimName": "Long Range All-Wheel Drive",
+      "Odometer": 95000,
+      "OdometerType": "KM",
+      "CurrencyCode": "EUR",
+      "City": "Palermo",
+      "StateProvince": "PA",
+      "CountryCode": "IT",
+      "TitleStatus": "USED",
+      "IsDemo": false,
+      "HasDamagePhotos": false,
+      "OriginalDeliveryDate": "2020-05-12T00:00:00",
+      "OptionCodeList": "$PMNG,$IBB1,$W38B,$APBS",
+      "OptionCodeData": [
+        {
+          "code": "$PMNG",
+          "group": "PAINT",
+          "name": "Grigio Midnight Silver"
+        },
+        {
+          "code": "$IBB1",
+          "group": "INTERIOR",
+          "name": "Interni Neri"
+        },
+        {
+          "code": "$W38B",
+          "group": "WHEELS",
+          "name": "Cerchi Aero da 18\""
+        },
+        {
+          "code": "$APBS",
+          "group": "AUTOPILOT",
+          "name": "Autopilot Avanzato"
+        }
+      ],
+      "OptionCodeSpecs": {
+        "C_SPECS": {
+          "code": "C_SPECS",
+          "name": "Specifiche",
+          "options": [
+            {
+              "code": "SPECS_RANGE",
+              "name": "Autonomia (WLTP)",
+              "value": "614",
+              "unit_short": "km"
+            },
+            {
+              "code": "SPECS_ACCELERATION",
+              "name": "Accelerazione 0-100 km/h",
+              "value": "4.4",
+              "unit_short": "s"
+            },
+            {
+              "code": "SPECS_TOPSPEED",
+              "name": "Velocita massima",
+              "value": "233",
+              "unit_short": "km/h"
+            }
+          ]
+        }
+      },
+      "Price": 22500,
+      "InventoryPrice": 22500,
+      "PurchasePrice": 22500,
+      "TotalPrice": 22500
+    },
+    {
+      "VIN": "LRW3E7EK3MC100003",
+      "Model": "m3",
+      "Year": 2021,
+      "TrimName": "Long Range All-Wheel Drive",
+      "Odometer": 62000,
+      "OdometerType": "KM",
+      "CurrencyCode": "EUR",
+      "City": "Palermo",
+      "StateProvince": "PA",
+      "CountryCode": "IT",
+      "TitleStatus": "USED",
+      "IsDemo": false,
+      "HasDamagePhotos": false,
+      "OriginalDeliveryDate": "2021-05-12T00:00:00",
+      "OptionCodeList": "$PPSW,$IBB1,$W39B,$APBS,$TW01",
+      "OptionCodeData": [
+        {
+          "code": "$PPSW",
+          "group": "PAINT",
+          "name": "Bianco Perla Multistrato"
+        },
+        {
+          "code": "$IBB1",
+          "group": "INTERIOR",
+          "name": "Interni Neri"
+        },
+        {
+          "code": "$W39B",
+          "group": "WHEELS",
+          "name": "Cerchi Sport da 19\""
+        },
+        {
+          "code": "$APBS",
+          "group": "AUTOPILOT",
+          "name": "Autopilot Avanzato"
+        },
+        {
+          "code": "$TW01",
+          "group": "TOWING",
+          "name": "Gancio di traino"
+        }
+      ],
+      "OptionCodeSpecs": {
+        "C_SPECS": {
+          "code": "C_SPECS",
+          "name": "Specifiche",
+          "options": [
+            {
+              "code": "SPECS_RANGE",
+              "name": "Autonomia (WLTP)",
+              "value": "614",
+              "unit_short": "km"
+            },
+            {
+              "code": "SPECS_ACCELERATION",
+              "name": "Accelerazione 0-100 km/h",
+              "value": "4.4",
+              "unit_short": "s"
+            },
+            {
+              "code": "SPECS_TOPSPEED",
+              "name": "Velocita massima",
+              "value": "233",
+              "unit_short": "km/h"
+            }
+          ]
+        }
+      },
+      "Price": 26900,
+      "InventoryPrice": 26900,
+      "PurchasePrice": 26900,
+      "TotalPrice": 26900
+    },
+    {
+      "VIN": "LRW3E7EC4MC100004",
+      "Model": "m3",
+      "Year": 2021,
+      "TrimName": "Performance All-Wheel Drive",
+      "Odometer": 71000,
+      "OdometerType": "KM",
+      "CurrencyCode": "EUR",
+      "City": "Palermo",
+      "StateProvince": "PA",
+      "CountryCode": "IT",
+      "TitleStatus": "USED",
+      "IsDemo": false,
+      "HasDamagePhotos": false,
+      "OriginalDeliveryDate": "2021-05-12T00:00:00",
+      "OptionCodeList": "$PPMR,$IWW1,$W41B",
+      "OptionCodeData": [
+        {
+          "code": "$PPMR",
+          "group": "PAINT",
+          "name": "Rosso Multistrato"
+        },
+        {
+          "code": "$IWW1",
+          "group": "INTERIOR",
+          "name": "Interni Bianchi"
+        },
+        {
+          "code": "$W41B",
+          "group": "WHEELS",
+          "name": "Cerchi Uberturbine da 20\""
+        }
+      ],
+      "OptionCodeSpecs": {
+        "C_SPECS": {
+          "code": "C_SPECS",
+          "name": "Specifiche",
+          "options": [
+            {
+              "code": "SPECS_RANGE",
+              "name": "Autonomia (WLTP)",
+              "value": "547",
+              "unit_short": "km"
+            },
+            {
+              "code": "SPECS_ACCELERATION",
+              "name": "Accelerazione 0-100 km/h",
+              "value": "3.3",
+              "unit_short": "s"
+            },
+            {
+              "code": "SPECS_TOPSPEED",
+              "name": "Velocita massima",
+              "value": "261",
+              "unit_short": "km/h"
+            }
+          ]
+        }
+      },
+      "Price": 31500,
+      "InventoryPrice": 31500,
+      "PurchasePrice": 31500,
+      "TotalPrice": 31500
+    },
+    {
+      "VIN": "LRW3E7EA5NC100005",
+      "Model": "m3",
+      "Year": 2022,
+      "TrimName": "Trazione Posteriore",
+      "Odometer": 38000,
+      "OdometerType": "KM",
+      "CurrencyCode": "EUR",
+      "City": "Palermo",
+      "StateProvince": "PA",
+      "CountryCode": "IT",
+      "TitleStatus": "USED",
+      "IsDemo": false,
+      "HasDamagePhotos": false,
+      "OriginalDeliveryDate": "2022-05-12T00:00:00",
+      "OptionCodeList": "$PPSW,$IBB1,$W38B",
+      "OptionCodeData": [
+        {
+          "code": "$PPSW",
+          "group": "PAINT",
+          "name": "Bianco Perla Multistrato"
+        },
+        {
+          "code": "$IBB1",
+          "group": "INTERIOR",
+          "name": "Interni Neri"
+        },
+        {
+          "code": "$W38B",
+          "group": "WHEELS",
+          "name": "Cerchi Aero da 18\""
+        }
+      ],
+      "OptionCodeSpecs": {
+        "C_SPECS": {
+          "code": "C_SPECS",
+          "name": "Specifiche",
+          "options": [
+            {
+              "code": "SPECS_RANGE",
+              "name": "Autonomia (WLTP)",
+              "value": "491",
+              "unit_short": "km"
+            },
+            {
+              "code": "SPECS_ACCELERATION",
+              "name": "Accelerazione 0-100 km/h",
+              "value": "6.1",
+              "unit_short": "s"
+            },
+            {
+              "code": "SPECS_TOPSPEED",
+              "name": "Velocita massima",
+              "value": "225",
+              "unit_short": "km/h"
+            }
+          ]
+        }
+      },
+      "Price": 28400,
+      "InventoryPrice": 28400,
+      "PurchasePrice": 28400,
+      "TotalPrice": 28400
+    },
+    {
+      "VIN": "LRW3E7EK6NC100006",
+      "Model": "m3",
+      "Year": 2022,
+      "TrimName": "Long Range All-Wheel Drive",
+      "Odometer": 45000,
+      "OdometerType": "KM",
+      "CurrencyCode": "EUR",
+      "City": "Palermo",
+      "StateProvince": "PA",
+      "CountryCode": "IT",
+      "TitleStatus": "USED",
+      "IsDemo": false,
+      "HasDamagePhotos": false,
+      "OriginalDeliveryDate": "2022-05-12T00:00:00",
+      "OptionCodeList": "$PPSB,$IBB1,$W39B,$APF2",
+      "OptionCodeData": [
+        {
+          "code": "$PPSB",
+          "group": "PAINT",
+          "name": "Blu Metallizzato"
+        },
+        {
+          "code": "$IBB1",
+          "group": "INTERIOR",
+          "name": "Interni Neri"
+        },
+        {
+          "code": "$W39B",
+          "group": "WHEELS",
+          "name": "Cerchi Sport da 19\""
+        },
+        {
+          "code": "$APF2",
+          "group": "AUTOPILOT",
+          "name": "Capacita di Guida Autonoma Totale"
+        }
+      ],
+      "OptionCodeSpecs": {
+        "C_SPECS": {
+          "code": "C_SPECS",
+          "name": "Specifiche",
+          "options": [
+            {
+              "code": "SPECS_RANGE",
+              "name": "Autonomia (WLTP)",
+              "value": "614",
+              "unit_short": "km"
+            },
+            {
+              "code": "SPECS_ACCELERATION",
+              "name": "Accelerazione 0-100 km/h",
+              "value": "4.4",
+              "unit_short": "s"
+            },
+            {
+              "code": "SPECS_TOPSPEED",
+              "name": "Velocita massima",
+              "value": "233",
+              "unit_short": "km/h"
+            }
+          ]
+        }
+      },
+      "Price": 32900,
+      "InventoryPrice": 32900,
+      "PurchasePrice": 32900,
+      "TotalPrice": 32900
+    },
+    {
+      "VIN": "LRW3E7EA7PC100007",
+      "Model": "m3",
+      "Year": 2023,
+      "TrimName": "Trazione Posteriore",
+      "Odometer": 29000,
+      "OdometerType": "KM",
+      "CurrencyCode": "EUR",
+      "City": "Palermo",
+      "StateProvince": "PA",
+      "CountryCode": "IT",
+      "TitleStatus": "USED",
+      "IsDemo": false,
+      "HasDamagePhotos": false,
+      "OriginalDeliveryDate": "2023-05-12T00:00:00",
+      "OptionCodeList": "$PBSB,$IBB1,$W38B",
+      "OptionCodeData": [
+        {
+          "code": "$PBSB",
+          "group": "PAINT",
+          "name": "Nero Pastello"
+        },
+        {
+          "code": "$IBB1",
+          "group": "INTERIOR",
+          "name": "Interni Neri"
+        },
+        {
+          "code": "$W38B",
+          "group": "WHEELS",
+          "name": "Cerchi Aero da 18\""
+        }
+      ],
+      "OptionCodeSpecs": {
+        "C_SPECS": {
+          "code": "C_SPECS",
+          "name": "Specifiche",
+          "options": [
+            {
+              "code": "SPECS_RANGE",
+              "name": "Autonomia (WLTP)",
+              "value": "491",
+              "unit_short": "km"
+            },
+            {
+              "code": "SPECS_ACCELERATION",
+              "name": "Accelerazione 0-100 km/h",
+              "value": "6.1",
+              "unit_short": "s"
+            },
+            {
+              "code": "SPECS_TOPSPEED",
+              "name": "Velocita massima",
+              "value": "225",
+              "unit_short": "km/h"
+            }
+          ]
+        }
+      },
+      "Price": 29900,
+      "InventoryPrice": 29900,
+      "PurchasePrice": 29900,
+      "TotalPrice": 29900
+    },
+    {
+      "VIN": "LRW3E7EK8RC100008",
+      "Model": "m3",
+      "Year": 2024,
+      "TrimName": "Long Range All-Wheel Drive",
+      "Odometer": 21000,
+      "OdometerType": "KM",
+      "CurrencyCode": "EUR",
+      "City": "Palermo",
+      "StateProvince": "PA",
+      "CountryCode": "IT",
+      "TitleStatus": "USED",
+      "IsDemo": false,
+      "HasDamagePhotos": false,
+      "OriginalDeliveryDate": "2024-05-12T00:00:00",
+      "OptionCodeList": "$PPSW,$IBB1,$W39B",
+      "OptionCodeData": [
+        {
+          "code": "$PPSW",
+          "group": "PAINT",
+          "name": "Bianco Perla Multistrato"
+        },
+        {
+          "code": "$IBB1",
+          "group": "INTERIOR",
+          "name": "Interni Neri"
+        },
+        {
+          "code": "$W39B",
+          "group": "WHEELS",
+          "name": "Cerchi Sport da 19\""
+        }
+      ],
+      "OptionCodeSpecs": {
+        "C_SPECS": {
+          "code": "C_SPECS",
+          "name": "Specifiche",
+          "options": [
+            {
+              "code": "SPECS_RANGE",
+              "name": "Autonomia (WLTP)",
+              "value": "614",
+              "unit_short": "km"
+            },
+            {
+              "code": "SPECS_ACCELERATION",
+              "name": "Accelerazione 0-100 km/h",
+              "value": "4.4",
+              "unit_short": "s"
+            },
+            {
+              "code": "SPECS_TOPSPEED",
+              "name": "Velocita massima",
+              "value": "233",
+              "unit_short": "km/h"
+            }
+          ]
+        }
+      },
+      "Price": 39900,
+      "InventoryPrice": 39900,
+      "PurchasePrice": 39900,
+      "TotalPrice": 40200,
+      "TransportFee": 300
+    },
+    {
+      "VIN": "LRW3E7EC9PC100009",
+      "Model": "m3",
+      "Year": 2023,
+      "TrimName": "Performance All-Wheel Drive",
+      "Odometer": 48000,
+      "OdometerType": "KM",
+      "CurrencyCode": "EUR",
+      "City": "Palermo",
+      "StateProvince": "PA",
+      "CountryCode": "IT",
+      "TitleStatus": "USED",
+      "IsDemo": false,
+      "HasDamagePhotos": true,
+      "OriginalDeliveryDate": "2023-05-12T00:00:00",
+      "OptionCodeList": "$PPSW,$IBB1,$W41B",
+      "OptionCodeData": [
+        {
+          "code": "$PPSW",
+          "group": "PAINT",
+          "name": "Bianco Perla Multistrato"
+        },
+        {
+          "code": "$IBB1",
+          "group": "INTERIOR",
+          "name": "Interni Neri"
+        },
+        {
+          "code": "$W41B",
+          "group": "WHEELS",
+          "name": "Cerchi Uberturbine da 20\""
+        }
+      ],
+      "OptionCodeSpecs": {
+        "C_SPECS": {
+          "code": "C_SPECS",
+          "name": "Specifiche",
+          "options": [
+            {
+              "code": "SPECS_RANGE",
+              "name": "Autonomia (WLTP)",
+              "value": "547",
+              "unit_short": "km"
+            },
+            {
+              "code": "SPECS_ACCELERATION",
+              "name": "Accelerazione 0-100 km/h",
+              "value": "3.3",
+              "unit_short": "s"
+            },
+            {
+              "code": "SPECS_TOPSPEED",
+              "name": "Velocita massima",
+              "value": "261",
+              "unit_short": "km/h"
+            }
+          ]
+        }
+      },
+      "Price": 38500,
+      "InventoryPrice": 38500,
+      "PurchasePrice": 38500,
+      "TotalPrice": 38500
+    },
+    {
+      "VIN": "LRW3E7EA1MC100011",
+      "Model": "m3",
+      "Year": 2021,
+      "TrimName": "Trazione Posteriore",
+      "Odometer": 55000,
+      "OdometerType": "KM",
+      "CurrencyCode": "EUR",
+      "City": "Palermo",
+      "StateProvince": "PA",
+      "CountryCode": "IT",
+      "TitleStatus": "USED",
+      "IsDemo": false,
+      "HasDamagePhotos": false,
+      "OriginalDeliveryDate": "2021-05-12T00:00:00",
+      "OptionCodeList": "$PPSW,$IBB1,$W38B",
+      "OptionCodeData": [
+        {
+          "code": "$PPSW",
+          "group": "PAINT",
+          "name": "Bianco Perla Multistrato"
+        },
+        {
+          "code": "$IBB1",
+          "group": "INTERIOR",
+          "name": "Interni Neri"
+        },
+        {
+          "code": "$W38B",
+          "group": "WHEELS",
+          "name": "Cerchi Aero da 18\""
+        }
+      ],
+      "OptionCodeSpecs": {
+        "C_SPECS": {
+          "code": "C_SPECS",
+          "name": "Specifiche",
+          "options": [
+            {
+              "code": "SPECS_RANGE",
+              "name": "Autonomia (WLTP)",
+              "value": "491",
+              "unit_short": "km"
+            },
+            {
+              "code": "SPECS_ACCELERATION",
+              "name": "Accelerazione 0-100 km/h",
+              "value": "6.1",
+              "unit_short": "s"
+            },
+            {
+              "code": "SPECS_TOPSPEED",
+              "name": "Velocita massima",
+              "value": "225",
+              "unit_short": "km/h"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "VIN": "LRW3E7EK2SC100012",
+      "Model": "m3",
+      "Year": 2023,
+      "TrimName": "Long Range All-Wheel Drive",
+      "Odometer": 33000,
+      "OdometerType": "KM",
+      "CurrencyCode": "EUR",
+      "City": "Palermo",
+      "StateProvince": "PA",
+      "CountryCode": "IT",
+      "TitleStatus": "USED",
+      "IsDemo": false,
+      "HasDamagePhotos": false,
+      "OriginalDeliveryDate": "2023-05-12T00:00:00",
+      "OptionCodeList": "$PPSW,$IWW1,$W39B,$APF2",
+      "OptionCodeData": [
+        {
+          "code": "$PPSW",
+          "group": "PAINT",
+          "name": "Bianco Perla Multistrato"
+        },
+        {
+          "code": "$IWW1",
+          "group": "INTERIOR",
+          "name": "Interni Bianchi"
+        },
+        {
+          "code": "$W39B",
+          "group": "WHEELS",
+          "name": "Cerchi Sport da 19\""
+        },
+        {
+          "code": "$APF2",
+          "group": "AUTOPILOT",
+          "name": "Capacita di Guida Autonoma Totale"
+        }
+      ],
+      "OptionCodeSpecs": {
+        "C_SPECS": {
+          "code": "C_SPECS",
+          "name": "Specifiche",
+          "options": [
+            {
+              "code": "SPECS_RANGE",
+              "name": "Autonomia (WLTP)",
+              "value": "614",
+              "unit_short": "km"
+            },
+            {
+              "code": "SPECS_ACCELERATION",
+              "name": "Accelerazione 0-100 km/h",
+              "value": "4.4",
+              "unit_short": "s"
+            },
+            {
+              "code": "SPECS_TOPSPEED",
+              "name": "Velocita massima",
+              "value": "233",
+              "unit_short": "km/h"
+            }
+          ]
+        }
+      },
+      "Price": 30900,
+      "InventoryPrice": 30900,
+      "PurchasePrice": 30900,
+      "TotalPrice": 30900
+    }
+  ],
+  "total_matches_found": "11"
+}
