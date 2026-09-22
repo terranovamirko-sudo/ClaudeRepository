@@ -228,17 +228,18 @@ def _print_result(cfg: Config, args: argparse.Namespace, result: RunResult) -> N
         print()
         print(alert_report.format_console_verdict(cfg, result, color=cfg.output.color))
         print()
-        if args.quiet:
-            return
     if not args.quiet:
         print(report.format_console(cfg, result.ranked, result.skipped,
                                     result.changes, result.meta))
         for path in result.written_files:
             print(f"  Report salvato: {path}")
-        for problem in result.notify_problems:
-            print(f"  Notifica non inviata — {problem}", file=sys.stderr)
         if result.written_files:
             print()
+    # I problemi di invio si stampano sempre, anche con --quiet: e proprio
+    # nell'esecuzione automatica, dove nessuno guarda, che un avviso non
+    # recapitato passerebbe inosservato.
+    for problem in result.notify_problems:
+        print(problem, file=sys.stderr)
 
 
 def _cron_line(cfg: Config) -> str:

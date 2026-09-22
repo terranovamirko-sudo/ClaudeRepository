@@ -383,7 +383,7 @@ e aggiungi la chiave nuova all'elenco in `first_of(...)` dentro
 python3 -m unittest discover -s tests -v
 ```
 
-99 test coprono lettura dei dati, riconoscimento di colore e generazione,
+103 test coprono lettura dei dati, riconoscimento di colore e generazione,
 valutazione, calibrazione, filtri, soglie delle occasioni, archivio, invio email
 e generazione dei report, usando i dati di esempio in `fixtures/`.
 

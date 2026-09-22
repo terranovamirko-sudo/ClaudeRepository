@@ -232,11 +232,19 @@ def format_console_verdict(cfg: Config, result, color: bool = True) -> str:
             lines.append(f"     {listing.url}")
         if result.opportunities:
             quante = len(result.opportunities)
-            azione = ("email inviata" if result.email_sent
-                      else ("nuova rispetto all'ultimo avviso" if quante == 1
-                            else "nuove rispetto all'ultimo avviso"))
             lines.append("")
-            lines.append(paint("1;32", f"  {quante} da segnalare — {azione}."))
+            if result.email_sent:
+                lines.append(paint("1;32", f"  {quante} da segnalare — email inviata."))
+            elif any("mail" in p.lower() for p in result.notify_problems):
+                # Non far credere che l'avviso sia partito: e il modo piu sicuro
+                # di perdere l'auto mentre il registro dice che va tutto bene.
+                lines.append(paint("1;31", f"  {quante} da segnalare, ma L'EMAIL NON È "
+                                           "PARTITA — vedi l'errore qui sotto. "
+                                           "Riprovo al prossimo controllo."))
+            else:
+                nuove = "nuova" if quante == 1 else "nuove"
+                lines.append(paint("1;32", f"  {quante} da segnalare — {nuove} "
+                                           "rispetto all'ultimo avviso."))
         else:
             lines.append("")
             lines.append(paint("2", "  Già segnalate in precedenza: nessun nuovo avviso."))

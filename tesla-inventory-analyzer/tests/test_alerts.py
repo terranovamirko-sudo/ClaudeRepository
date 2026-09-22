@@ -517,3 +517,58 @@ class TestCalibrazionePerAllestimento(unittest.TestCase):
         for trim, fattori in per_allestimento.items():
             self.assertEqual(len(fattori), 1, f"{trim} deve avere un solo fattore")
         self.assertGreaterEqual(len(per_allestimento), 2)
+
+
+class TestPrimoAvvio(unittest.TestCase):
+    """Gli inciampi del primo avvio, provati come li incontrerebbe chi installa."""
+
+    def test_segnaposto_non_sostituiti_vengono_detti(self):
+        cfg = EmailConfig(enabled=True, smtp_host="smtp.gmail.com",
+                          username="INDIRIZZO-GMAIL-DEDICATO@gmail.com",
+                          sender="INDIRIZZO-GMAIL-DEDICATO@gmail.com",
+                          password="x", recipients=["mirkoterranova@outlook.it"])
+        problemi = mailer.check_config(cfg)
+        self.assertTrue(any("segnaposto" in p for p in problemi),
+                        "un segnaposto lasciato nel file deve essere segnalato subito, "
+                        "non finire in un errore SMTP incomprensibile")
+
+    def test_configurazione_completa_non_segnala_nulla(self):
+        cfg = EmailConfig(enabled=True, smtp_host="smtp.gmail.com",
+                          username="io@gmail.com", sender="io@gmail.com",
+                          password="x", recipients=["mirkoterranova@outlook.it"])
+        self.assertEqual(mailer.check_config(cfg), [])
+
+    def test_errore_di_invio_visibile_anche_in_modalita_silenziosa(self):
+        """Con --quiet (quella di cron) un avviso non recapitato deve comunque urlare."""
+        import argparse
+        import io
+        import contextlib
+        from tesla_inventory.__main__ import _print_result
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = ricerca_di_mirko(tmp, CON)
+            cfg.email = EmailConfig(enabled=True, smtp_host="smtp.gmail.com",
+                                    username="io@gmail.com", sender="io@gmail.com",
+                                    password="x", recipients=["mirkoterranova@outlook.it"])
+            with mock.patch("tesla_inventory.mailer.send",
+                            side_effect=mailer.EmailError("server irraggiungibile")):
+                result = run_once(cfg)
+
+            args = argparse.Namespace(as_json=False, quiet=True)
+            uscita, errori = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(uscita), contextlib.redirect_stderr(errori):
+                _print_result(cfg, args, result)
+
+            self.assertIn("server irraggiungibile", errori.getvalue())
+            self.assertIn("NON È PARTITA", uscita.getvalue())
+
+    def test_verdetto_dice_email_inviata_quando_lo_e(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = ricerca_di_mirko(tmp, CON)
+            cfg.email = EmailConfig(enabled=True, smtp_host="smtp.gmail.com",
+                                    username="io@gmail.com", sender="io@gmail.com",
+                                    password="x", recipients=["mirkoterranova@outlook.it"])
+            with mock.patch("tesla_inventory.mailer.send"):
+                result = run_once(cfg)
+            testo = alert_report.format_console_verdict(cfg, result, color=False)
+            self.assertIn("email inviata", testo)

@@ -62,9 +62,25 @@ def warnings(cfg: EmailConfig) -> list[str]:
     return notes
 
 
+# Valori segnaposto dei file di configurazione di esempio. Se restano cosi
+# l'invio fallisce piu avanti, con un errore SMTP che non aiuta a capire.
+PLACEHOLDER_MARKERS = ("INDIRIZZO-GMAIL-DEDICATO", "TUO-INDIRIZZO", "DA-COMPILARE")
+
+
+def _is_placeholder(value: str) -> bool:
+    return any(marker in value for marker in PLACEHOLDER_MARKERS)
+
+
 def check_config(cfg: EmailConfig) -> list[str]:
     """Elenca cosa manca per poter inviare. Lista vuota = pronto."""
     problems: list[str] = []
+    for campo, valore in (("username", cfg.username), ("sender", cfg.sender)):
+        if valore and _is_placeholder(valore):
+            problems.append(f"{campo} contiene ancora il segnaposto del file di esempio "
+                            f"({valore}): sostituiscilo col tuo indirizzo")
+    for destinatario in cfg.recipients:
+        if _is_placeholder(destinatario):
+            problems.append(f"il destinatario {destinatario} e ancora un segnaposto")
     if not cfg.smtp_host:
         problems.append("manca smtp_host")
     if not cfg.recipients:
