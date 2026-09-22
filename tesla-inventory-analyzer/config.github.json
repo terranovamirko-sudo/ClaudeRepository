@@ -1,0 +1,44 @@
+{
+  "_commento": "Configurazione per l'esecuzione su GitHub Actions. Non contiene nulla di personale: utenza, password e destinatari arrivano dai Secrets del repository (TESLA_SMTP_USER, TESLA_SMTP_PASSWORD, TESLA_MAIL_TO).",
+
+  "search": {
+    "model": "m3",
+    "condition": "used",
+    "zip_code": "90126",
+    "market": "IT",
+    "language": "it",
+    "payment_type": "cash"
+  },
+
+  "filters": {
+    "min_year": 2023,
+    "max_year": 2023,
+    "trims": ["RWD"],
+    "colors": ["black", "red", "blue"],
+    "exclude_damaged": true
+  },
+
+  "alert": {
+    "enabled": true,
+    "min_score": 62.0,
+    "min_advantage_pct": 8.0,
+    "min_advantage_eur": 1500.0,
+    "repeat_after_drop_eur": 500.0
+  },
+
+  "email": {
+    "enabled": true,
+    "smtp_host": "smtp.gmail.com",
+    "smtp_port": 587,
+    "security": "starttls",
+    "sender_name": "Analizzatore Tesla",
+    "subject_prefix": "[Tesla]"
+  },
+
+  "output": {
+    "data_dir": "data",
+    "write_html": false,
+    "write_markdown": false,
+    "color": false
+  }
+}

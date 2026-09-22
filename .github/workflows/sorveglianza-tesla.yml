@@ -1,0 +1,90 @@
+# Controlla l'inventario Tesla ogni 3 ore e manda una email quando compare
+# un'occasione.
+#
+# AVVERTENZA IMPORTANTE. I runner di GitHub usano indirizzi IP di datacenter, e
+# il sito Tesla li respinge con una verifica anti-bot: e verosimile che questo
+# workflow non riesca a leggere l'inventario. Il passo "Controlla l'inventario"
+# distingue quel caso dagli altri errori e lo scrive a chiare lettere nel log.
+# Se viene bloccato, l'alternativa e eseguire il programma da una rete
+# domestica: basta un dispositivo piccolo sempre acceso, non serve il computer.
+#
+# Prima di attivarlo servono tre Secrets del repository
+# (Settings > Secrets and variables > Actions):
+#   TESLA_SMTP_USER      indirizzo Gmail dedicato all'invio
+#   TESLA_SMTP_PASSWORD  password per le app generata da myaccount.google.com/apppasswords
+#   TESLA_MAIL_TO        indirizzo a cui recapitare gli avvisi
+#
+# I lavori programmati vengono eseguiti solo dal branch predefinito del
+# repository: finche questo file vive su un altro branch, la pianificazione
+# resta ferma e resta possibile solo l'avvio manuale.
+
+name: Sorveglianza Tesla
+
+on:
+  schedule:
+    # Ogni 3 ore. Il minuto 17 evita l'ora esatta, quando la coda di GitHub e
+    # piu affollata e i ritardi crescono.
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sorveglianza-tesla
+  cancel-in-progress: false
+
+jobs:
+  controlla:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tesla-inventory-analyzer
+
+    steps:
+      - name: Scarica il codice
+        uses: actions/checkout@v4
+
+      - name: Prepara Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Recupera lo storico dell'esecuzione precedente
+        uses: actions/cache/restore@v4
+        with:
+          path: tesla-inventory-analyzer/data
+          key: sorveglianza-tesla-${{ github.run_id }}
+          restore-keys: sorveglianza-tesla-
+
+      - name: Verifica che il programma funzioni
+        run: python3 -m unittest discover -s tests
+
+      - name: Controlla l'inventario e avvisa
+        id: controllo
+        env:
+          TESLA_SMTP_USER: ${{ secrets.TESLA_SMTP_USER }}
+          TESLA_SMTP_PASSWORD: ${{ secrets.TESLA_SMTP_PASSWORD }}
+          TESLA_MAIL_TO: ${{ secrets.TESLA_MAIL_TO }}
+        run: |
+          set +e
+          python3 -m tesla_inventory --config config.github.json
+          codice=$?
+          echo "codice=$codice" >> "$GITHUB_OUTPUT"
+          case "$codice" in
+            0)
+              echo "::notice title=Controllo eseguito::L'inventario Tesla e stato letto correttamente." ;;
+            2)
+              echo "::error title=Tesla ha respinto la richiesta::I runner di GitHub usano IP di datacenter e Tesla li blocca con una verifica anti-bot. Questo workflow non puo funzionare da qui: esegui il programma da una rete domestica." ;;
+            *)
+              echo "::error title=Controllo fallito::Uscita con codice $codice, vedi il registro qui sopra." ;;
+          esac
+          exit "$codice"
+
+      - name: Conserva lo storico per la prossima esecuzione
+        if: always() && steps.controllo.outputs.codice == '0'
+        uses: actions/cache/save@v4
+        with:
+          path: tesla-inventory-analyzer/data
+          key: sorveglianza-tesla-${{ github.run_id }}

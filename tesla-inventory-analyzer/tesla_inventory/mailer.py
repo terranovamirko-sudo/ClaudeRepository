@@ -19,6 +19,38 @@ class EmailError(RuntimeError):
     """Configurazione incompleta o invio non riuscito."""
 
 
+def resolve_username(cfg: EmailConfig) -> str:
+    """Utenza dalla configurazione o dalla variabile d'ambiente.
+
+    Serve dove il file di configurazione e pubblico - un repository, per dire -
+    e le credenziali devono restare fuori.
+    """
+    if cfg.username:
+        return cfg.username
+    if cfg.username_env:
+        return os.environ.get(cfg.username_env, "")
+    return ""
+
+
+def resolve_sender(cfg: EmailConfig) -> str:
+    """Mittente dichiarato, oppure l'utenza autenticata."""
+    return cfg.sender or resolve_username(cfg)
+
+
+def resolve_recipients(cfg: EmailConfig) -> list[str]:
+    """Destinatari dalla configurazione o dalla variabile d'ambiente.
+
+    Tenerli fuori dal file serve dove quel file e pubblico: un indirizzo scritto
+    in un repository e materiale pronto per chi raccoglie email.
+    """
+    if cfg.recipients:
+        return list(cfg.recipients)
+    if cfg.recipients_env:
+        grezzo = os.environ.get(cfg.recipients_env, "")
+        return [r.strip() for r in grezzo.split(",") if r.strip()]
+    return []
+
+
 def resolve_password(cfg: EmailConfig) -> str:
     """Password dalla configurazione o, meglio, dalla variabile d'ambiente."""
     if cfg.password:
@@ -42,7 +74,7 @@ LEGACY_MICROSOFT_DOMAINS = ("outlook.com", "outlook.it", "hotmail.com", "hotmail
 def warnings(cfg: EmailConfig) -> list[str]:
     """Problemi probabili ma non certi: non bloccano l'invio, lo prevengono."""
     notes: list[str] = []
-    sender = (cfg.sender or cfg.username).lower()
+    sender = resolve_sender(cfg).lower()
     if sender.endswith(LEGACY_MICROSOFT_DOMAINS):
         notes.append(
             f"il mittente {sender} e un account Microsoft personale: dal 16 settembre 2024 "
@@ -53,9 +85,10 @@ def warnings(cfg: EmailConfig) -> list[str]:
             "password per le app, o un servizio SMTP come Brevo. Ricevere su Outlook "
             "funziona in ogni caso."
         )
-    if cfg.sender and cfg.username and cfg.sender.lower() != cfg.username.lower():
+    username = resolve_username(cfg)
+    if cfg.sender and username and cfg.sender.lower() != username.lower():
         notes.append(
-            f"il mittente ({cfg.sender}) e diverso dall'utenza autenticata ({cfg.username}): "
+            f"il mittente ({cfg.sender}) e diverso dall'utenza autenticata ({username}): "
             "molti provider rifiutano l'invio, e i controlli antispam del destinatario "
             "possono spostare il messaggio nella posta indesiderata."
         )
@@ -74,19 +107,21 @@ def _is_placeholder(value: str) -> bool:
 def check_config(cfg: EmailConfig) -> list[str]:
     """Elenca cosa manca per poter inviare. Lista vuota = pronto."""
     problems: list[str] = []
-    for campo, valore in (("username", cfg.username), ("sender", cfg.sender)):
+    for campo, valore in (("username", resolve_username(cfg)), ("sender", cfg.sender)):
         if valore and _is_placeholder(valore):
             problems.append(f"{campo} contiene ancora il segnaposto del file di esempio "
                             f"({valore}): sostituiscilo col tuo indirizzo")
-    for destinatario in cfg.recipients:
+    for destinatario in resolve_recipients(cfg):
         if _is_placeholder(destinatario):
             problems.append(f"il destinatario {destinatario} e ancora un segnaposto")
     if not cfg.smtp_host:
         problems.append("manca smtp_host")
-    if not cfg.recipients:
-        problems.append("manca almeno un destinatario in recipients")
-    if not cfg.username and cfg.security != "none":
-        problems.append("manca username")
+    if not resolve_recipients(cfg):
+        problems.append(f"manca almeno un destinatario (in email.recipients oppure "
+                        f"nella variabile d'ambiente {cfg.recipients_env})")
+    if not resolve_username(cfg) and cfg.security != "none":
+        problems.append(f"manca username (impostalo in email.username oppure nella "
+                        f"variabile d'ambiente {cfg.username_env})")
     if not resolve_password(cfg) and cfg.security != "none":
         problems.append(f"manca la password (impostala in email.password oppure "
                         f"nella variabile d'ambiente {cfg.password_env})")
@@ -98,9 +133,9 @@ def check_config(cfg: EmailConfig) -> list[str]:
 def build_message(cfg: EmailConfig, subject: str, text_body: str,
                   html_body: str | None = None) -> EmailMessage:
     message = EmailMessage()
-    sender = cfg.sender or cfg.username
+    sender = resolve_sender(cfg)
     message["From"] = formataddr((cfg.sender_name, sender)) if cfg.sender_name else sender
-    message["To"] = ", ".join(cfg.recipients)
+    message["To"] = ", ".join(resolve_recipients(cfg))
     prefix = f"{cfg.subject_prefix} " if cfg.subject_prefix else ""
     message["Subject"] = f"{prefix}{subject}"
     message.set_content(text_body)
@@ -131,8 +166,9 @@ def send(cfg: EmailConfig, subject: str, text_body: str,
             if cfg.security == "starttls":
                 server.starttls(context=context)
                 server.ehlo()
-            if cfg.username and password:
-                server.login(cfg.username, password)
+            username = resolve_username(cfg)
+            if username and password:
+                server.login(username, password)
             server.send_message(message)
     except smtplib.SMTPAuthenticationError as exc:
         raise EmailError(

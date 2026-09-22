@@ -264,7 +264,8 @@ def _test_email(cfg: Config) -> int:
     except mailer.EmailError as exc:
         print(f"Invio non riuscito: {exc}", file=sys.stderr)
         return EXIT_ERROR
-    print(f"Email di prova inviata a {', '.join(cfg.email.recipients)}.")
+    print(f"Email di prova inviata a "
+          f"{', '.join(mailer.resolve_recipients(cfg.email))}.")
     print("Se non arriva entro qualche minuto, controlla la posta indesiderata.")
     return EXIT_OK
 

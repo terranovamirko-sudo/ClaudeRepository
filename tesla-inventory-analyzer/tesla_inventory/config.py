@@ -197,11 +197,13 @@ class EmailConfig:
     smtp_port: int = 587
     security: str = "starttls"       # starttls | ssl | none
     username: str = ""
+    username_env: str = "TESLA_SMTP_USER"   # utile dove le credenziali stanno fuori dal file
     password: str = ""               # meglio lasciarlo vuoto e usare password_env
     password_env: str = "TESLA_SMTP_PASSWORD"
     sender: str = ""                 # indirizzo mittente (di norma = username)
     sender_name: str = "Analizzatore Tesla"
     recipients: list[str] = field(default_factory=list)
+    recipients_env: str = "TESLA_MAIL_TO"   # elenco separato da virgole
     subject_prefix: str = "[Tesla]"
     timeout: int = 30
 
