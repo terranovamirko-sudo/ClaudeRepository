@@ -36,9 +36,12 @@ jobs:
           pip install -r tesla-monitor/requirements.txt
           python -m playwright install --with-deps chromium
 
+      # Real Chrome with a virtual display is harder to tell apart from a person.
       - name: Check inventory
-        run: python tesla-monitor/tesla_monitor.py --state tesla-monitor/state.json
+        run: xvfb-run -a python tesla-monitor/tesla_monitor.py --state tesla-monitor/state.json
         env:
+          TESLA_BROWSER: chrome
+          TESLA_HEADFUL: "1"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}

@@ -137,18 +137,34 @@ def http_get_json(url):
 
 
 def fetch_with_browser():
-    """Opens the inventory page in Chromium and calls the API from inside it."""
+    """Opens the inventory page in a browser and calls the API from inside it."""
     from playwright.sync_api import sync_playwright
 
+    # TESLA_BROWSER=chrome uses the installed Google Chrome; TESLA_HEADFUL=1 opens a
+    # real window (run it under xvfb-run on a server). Both look less like a bot.
+    channel = os.environ.get("TESLA_BROWSER") or "chromium"
+    headless = os.environ.get("TESLA_HEADFUL") != "1"
     with sync_playwright() as p:
         try:
-            browser = p.chromium.launch(channel="chromium", headless=True)
+            browser = p.chromium.launch(channel=channel, headless=headless)
         except Exception:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=headless)
         try:
-            page = browser.new_context(locale="it-IT", user_agent=USER_AGENT).new_page()
-            page.goto(PAGE_URL, wait_until="domcontentloaded", timeout=60000)
-            page.wait_for_timeout(5000)
+            probe = browser.new_page()
+            user_agent = probe.evaluate("navigator.userAgent").replace("HeadlessChrome", "Chrome")
+            probe.close()
+            page = browser.new_context(locale="it-IT", user_agent=user_agent).new_page()
+            api_status = []
+            page.on("response", lambda r: "inventory-results" in r.url and api_status.append(r.status))
+            resp = page.goto(PAGE_URL, wait_until="domcontentloaded", timeout=60000)
+            if resp is not None and resp.status >= 400:
+                raise BlockedError(f"HTTP {resp.status} già sulla pagina: Tesla blocca questo indirizzo IP")
+            try:
+                page.wait_for_load_state("networkidle", timeout=30000)
+            except Exception:
+                pass
+            print(f"Pagina caricata (browser {channel}, headless={headless}); "
+                  f"richieste API della pagina: {api_status or 'nessuna'}")
 
             def get_json(url):
                 res = page.evaluate(
