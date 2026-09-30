@@ -56,7 +56,11 @@ Invece di `--loop` puoi far partire un singolo controllo ogni ora con lo schedul
 
 ### Opzione B — GitHub Actions (gratis, senza PC acceso)
 
-Il workflow [`.github/workflows/tesla-monitor.yml`](../.github/workflows/tesla-monitor.yml) esegue il controllo ogni ora.
+Il workflow [`.github/workflows/tesla-monitor.yml`](../.github/workflows/tesla-monitor.yml) esegue il controllo.
+
+> ⛔ **Esecuzione oraria disattivata**: nelle prove Tesla ha bloccato i server di GitHub con "403", anche
+> usando un browser reale. Il workflow si può ancora avviare a mano; per riattivare l'esecuzione oraria
+> aggiungi di nuovo `schedule` nella sezione `on:` del file.
 
 1. Su GitHub: **Settings → Secrets and variables → Actions → New repository secret** e aggiungi
    `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID` (e/o `NTFY_TOPIC`).
