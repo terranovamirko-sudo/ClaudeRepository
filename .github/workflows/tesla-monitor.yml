@@ -1,0 +1,51 @@
+name: Tesla monitor
+
+on:
+  schedule:
+    - cron: "17 * * * *" # every hour (UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tesla-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Cars already seen are kept in the Actions cache between runs.
+      - name: Restore state
+        uses: actions/cache/restore@v4
+        with:
+          path: tesla-monitor/state.json
+          key: tesla-state-${{ github.run_id }}
+          restore-keys: tesla-state-
+
+      - name: Install Playwright (browser fallback)
+        run: |
+          pip install -r tesla-monitor/requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Check inventory
+        run: python tesla-monitor/tesla_monitor.py --state tesla-monitor/state.json
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+
+      - name: Save state
+        if: always() && hashFiles('tesla-monitor/state.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: tesla-monitor/state.json
+          key: tesla-state-${{ github.run_id }}
